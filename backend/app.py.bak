@@ -1,7 +1,12 @@
 #!/usr/bin/env python3
 """
 CityCred - Cerebro Hibrido Profesional
-Backend Flask - Versión para PythonAnywhere
+Backend Flask con:
+- Reglas comerciales obligatorias
+- Memoria de sesion persistente
+- Analisis comercial (frio/caliente, cierre, objeciones)
+- Base de conocimiento (TXT/DOCX/XLSX)
+- OpenAI real (si OPENAI_API_KEY esta configurada)
 """
 
 from __future__ import annotations
@@ -19,22 +24,24 @@ from flask_cors import CORS
 
 try:
     from openai import OpenAI
-except Exception:
+except Exception:  # pragma: no cover
     OpenAI = None
 
 try:
-    import docx
-except Exception:
+    import docx  # type: ignore
+except Exception:  # pragma: no cover
     docx = None
 
 try:
-    import openpyxl
-except Exception:
+    import openpyxl  # type: ignore
+except Exception:  # pragma: no cover
     openpyxl = None
 
 
-# En PythonAnywhere, el archivo está en /home/santiago123/mysite/
-BASE_DIR = Path(__file__).resolve().parent
+app = Flask(__name__, static_folder="frontend", template_folder="frontend")
+CORS(app)
+
+BASE_DIR = Path(__file__).resolve().parent.parent
 FRONTEND_DIR = BASE_DIR / "frontend"
 DATA_DIR = BASE_DIR / "data"
 UPLOADS_DIR = DATA_DIR / "uploads"
@@ -44,11 +51,13 @@ KNOWLEDGE_FILE = DATA_DIR / "knowledge_memory.json"
 DATA_DIR.mkdir(parents=True, exist_ok=True)
 UPLOADS_DIR.mkdir(parents=True, exist_ok=True)
 
-app = Flask(__name__, static_folder=str(BASE_DIR), template_folder=str(FRONTEND_DIR))
-CORS(app)
-
 OPENAI_RUNTIME_KEY: str | None = None
 OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
+
+
+# =====================================================
+# Utilidades base
+# =====================================================
 
 
 def now_iso() -> str:
@@ -80,6 +89,11 @@ def write_json(path: Path, data: Any) -> None:
 
 def get_openai_key() -> str | None:
     return OPENAI_RUNTIME_KEY or os.getenv("OPENAI_API_KEY")
+
+
+# =====================================================
+# Deteccion semantica comercial
+# =====================================================
 
 
 def detect_force(text: str) -> str:
@@ -280,6 +294,11 @@ def local_answer(
     return "Perfecto, vamos bien. Confirmame tus datos y te armo la mejor opción para cerrar hoy."
 
 
+# =====================================================
+# Memoria de sesion y conocimiento
+# =====================================================
+
+
 def load_sessions() -> dict[str, Any]:
     return read_json(SESSION_MEMORY_FILE, {"sessions": {}})
 
@@ -363,6 +382,11 @@ def knowledge_lookup(message: str) -> str | None:
     return None
 
 
+# =====================================================
+# OpenAI hibrido
+# =====================================================
+
+
 def openai_answer(
     payload: dict[str, Any], analysis: dict[str, Any], base_text: str
 ) -> str | None:
@@ -415,6 +439,11 @@ def enforce_rules(answer: str, analysis: dict[str, Any]) -> str:
     ):
         out += "\n\n¿sos personal voluntario o de carrera?"
     return out
+
+
+# =====================================================
+# Analizador principal de contexto comercial
+# =====================================================
 
 
 def analyze(payload: dict[str, Any]) -> dict[str, Any]:
@@ -538,6 +567,11 @@ def build_response(payload: dict[str, Any], prefer_openai: bool) -> dict[str, An
     }
 
 
+# =====================================================
+# Rutas Flask
+# =====================================================
+
+
 @app.get("/")
 def index() -> Any:
     return send_from_directory(FRONTEND_DIR, "simulador.html")
@@ -554,6 +588,7 @@ def api_response() -> Any:
 
 @app.post("/api/chat")
 def api_chat() -> Any:
+    """Endpoint OpenAI real. Usa memoria + contexto comercial completo."""
     payload = request.get_json(force=True) or {}
     data = build_response(payload, prefer_openai=True)
     data["endpoint"] = "/api/chat"
@@ -563,7 +598,7 @@ def api_chat() -> Any:
 @app.post("/api/upload-info")
 def api_upload_info() -> Any:
     if "file" not in request.files:
-        return jsonify({"ok": False, "error": "Falta archivo"}), 400
+        return jsonify({"ok": False, "error": "Falta archivo en campo file"}), 400
     f = request.files["file"]
     if not f.filename:
         return jsonify({"ok": False, "error": "Archivo invalido"}), 400
@@ -637,6 +672,9 @@ def api_health() -> Any:
     )
 
 
-@app.route("/<path:filename>")
-def serve_static(filename: str) -> Any:
-    return send_from_directory(BASE_DIR, filename)
+if __name__ == "__main__":
+    print("CityCred Cerebro Hibrido listo")
+    print(f"Frontend: {FRONTEND_DIR}")
+    print(f"Data: {DATA_DIR}")
+    print("URL: http://127.0.0.1:8000")
+    app.run(host="127.0.0.1", port=8000, debug=True, use_reloader=False)
