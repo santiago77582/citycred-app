@@ -96,6 +96,61 @@ test('no reintenta un envío con falla de red y marca el resultado como desconoc
   }
 });
 
+test('trata un 2xx sin wamid como resultado ambiguo', async () => {
+  const originalFetch = globalThis.fetch;
+  let calls = 0;
+
+  globalThis.fetch = (async () => {
+    calls += 1;
+    return jsonResponse({ messaging_product: 'whatsapp', messages: [] }, 200);
+  }) as typeof fetch;
+
+  try {
+    await assert.rejects(
+      sendText('5492915550000', 'Prueba'),
+      (error: unknown) => {
+        assert.ok(error instanceof AppError);
+        assert.equal(error.details?.deliveryUnknown, true);
+        assert.equal(error.details?.responseAccepted, true);
+        assert.equal(error.details?.reason, 'missing_wamid');
+        return true;
+      }
+    );
+    assert.equal(calls, 1);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test('trata un 2xx sin JSON válido como resultado ambiguo', async () => {
+  const originalFetch = globalThis.fetch;
+  let calls = 0;
+
+  globalThis.fetch = (async () => {
+    calls += 1;
+    return new Response('respuesta-no-json', {
+      status: 200,
+      headers: { 'content-type': 'text/plain' }
+    });
+  }) as typeof fetch;
+
+  try {
+    await assert.rejects(
+      sendText('5492915550000', 'Prueba'),
+      (error: unknown) => {
+        assert.ok(error instanceof AppError);
+        assert.equal(error.details?.httpStatus, 200);
+        assert.equal(error.details?.deliveryUnknown, true);
+        assert.equal(error.details?.attempts, 1);
+        return true;
+      }
+    );
+    assert.equal(calls, 1);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
 test('no reintenta un error permanente de Meta', async () => {
   const originalFetch = globalThis.fetch;
   let calls = 0;
