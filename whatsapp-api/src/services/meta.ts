@@ -98,6 +98,7 @@ async function metaRequest<T>(
         data = (await response.json()) as T & MetaErrorEnvelope;
       } catch {
         const transient = TRANSIENT_HTTP_STATUSES.has(response.status);
+        const responseMayHaveAcceptedDelivery = response.ok || response.status >= 500;
         if (transient && attempt < maxRetries) {
           await sleep(retryDelayMs(attempt, response));
           continue;
@@ -105,7 +106,7 @@ async function metaRequest<T>(
         throw new AppError(`Meta respondió HTTP ${response.status} sin JSON válido`, 502, {
           httpStatus: response.status,
           transient,
-          deliveryUnknown: policy.deliveryCanBeAmbiguous && response.status >= 500,
+          deliveryUnknown: policy.deliveryCanBeAmbiguous && responseMayHaveAcceptedDelivery,
           attempts: attempt + 1
         });
       }
@@ -166,8 +167,30 @@ export type SendResult = {
   messages?: Array<{ id?: string; message_status?: string }>;
 };
 
-export function sendText(to: string, text: string, previewUrl = false): Promise<SendResult> {
-  return metaRequest(
+function requireSendAcknowledgement(result: SendResult): SendResult {
+  const wamid = result.messages?.[0]?.id;
+  if (typeof wamid !== 'string' || wamid.trim() === '') {
+    throw new AppError(
+      'Meta aceptó la solicitud HTTP pero no devolvió el identificador del mensaje',
+      502,
+      {
+        transient: false,
+        deliveryUnknown: true,
+        responseAccepted: true,
+        reason: 'missing_wamid',
+        attempts: 1
+      }
+    );
+  }
+  return result;
+}
+
+export async function sendText(
+  to: string,
+  text: string,
+  previewUrl = false
+): Promise<SendResult> {
+  const result = await metaRequest<SendResult>(
     '/messages',
     {
       messaging_product: 'whatsapp',
@@ -178,15 +201,16 @@ export function sendText(to: string, text: string, previewUrl = false): Promise<
     },
     { retryTransient: false, deliveryCanBeAmbiguous: true }
   );
+  return requireSendAcknowledgement(result);
 }
 
-export function sendTemplate(
+export async function sendTemplate(
   to: string,
   templateName: string,
   languageCode: string,
   components?: unknown[]
 ): Promise<SendResult> {
-  return metaRequest(
+  const result = await metaRequest<SendResult>(
     '/messages',
     {
       messaging_product: 'whatsapp',
@@ -200,6 +224,7 @@ export function sendTemplate(
     },
     { retryTransient: false, deliveryCanBeAmbiguous: true }
   );
+  return requireSendAcknowledgement(result);
 }
 
 export function markAsRead(messageId: string): Promise<unknown> {
