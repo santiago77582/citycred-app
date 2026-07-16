@@ -10,7 +10,7 @@ process.env.META_MAX_RETRIES = '2';
 process.env.META_RETRY_BASE_MS = '50';
 
 const { AppError } = await import('../errors/AppError.js');
-const { sendText } = await import('../services/meta.js');
+const { markAsRead, sendText } = await import('../services/meta.js');
 
 function jsonResponse(body: unknown, status: number, extraHeaders?: Record<string, string>): Response {
   return new Response(JSON.stringify(body), {
@@ -22,7 +22,7 @@ function jsonResponse(body: unknown, status: number, extraHeaders?: Record<strin
   });
 }
 
-test('reintenta errores transitorios y devuelve el resultado cuando Meta se recupera', async () => {
+test('reintenta una operación idempotente cuando Meta devuelve un error transitorio', async () => {
   const originalFetch = globalThis.fetch;
   let calls = 0;
 
@@ -31,13 +31,66 @@ test('reintenta errores transitorios y devuelve el resultado cuando Meta se recu
     if (calls < 3) {
       return jsonResponse({ error: { message: 'servicio temporalmente no disponible' } }, 503);
     }
-    return jsonResponse({ messages: [{ id: 'wamid.recuperado' }] }, 200);
+    return jsonResponse({ success: true }, 200);
   }) as typeof fetch;
 
   try {
-    const result = await sendText('5492915550000', 'Prueba');
+    const result = await markAsRead('wamid.entrada');
     assert.equal(calls, 3);
-    assert.equal(result.messages?.[0]?.id, 'wamid.recuperado');
+    assert.deepEqual(result, { success: true });
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test('no reintenta el envío si Meta devuelve 5xx para evitar mensajes duplicados', async () => {
+  const originalFetch = globalThis.fetch;
+  let calls = 0;
+
+  globalThis.fetch = (async () => {
+    calls += 1;
+    return jsonResponse({ error: { message: 'error temporal' } }, 503);
+  }) as typeof fetch;
+
+  try {
+    await assert.rejects(
+      sendText('5492915550000', 'Prueba'),
+      (error: unknown) => {
+        assert.ok(error instanceof AppError);
+        assert.equal(error.details?.httpStatus, 503);
+        assert.equal(error.details?.transient, true);
+        assert.equal(error.details?.deliveryUnknown, true);
+        assert.equal(error.details?.attempts, 1);
+        return true;
+      }
+    );
+    assert.equal(calls, 1);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test('no reintenta un envío con falla de red y marca el resultado como desconocido', async () => {
+  const originalFetch = globalThis.fetch;
+  let calls = 0;
+
+  globalThis.fetch = (async () => {
+    calls += 1;
+    throw new TypeError('fallo de red simulado');
+  }) as typeof fetch;
+
+  try {
+    await assert.rejects(
+      sendText('5492915550000', 'Prueba'),
+      (error: unknown) => {
+        assert.ok(error instanceof AppError);
+        assert.equal(error.details?.transient, true);
+        assert.equal(error.details?.deliveryUnknown, true);
+        assert.equal(error.details?.attempts, 1);
+        return true;
+      }
+    );
+    assert.equal(calls, 1);
   } finally {
     globalThis.fetch = originalFetch;
   }
@@ -59,6 +112,7 @@ test('no reintenta un error permanente de Meta', async () => {
         assert.ok(error instanceof AppError);
         assert.equal(error.details?.httpStatus, 400);
         assert.equal(error.details?.transient, false);
+        assert.equal(error.details?.deliveryUnknown, false);
         assert.equal(error.details?.attempts, 1);
         return true;
       }
@@ -69,26 +123,7 @@ test('no reintenta un error permanente de Meta', async () => {
   }
 });
 
-test('reintenta una falla de red y luego completa el envío', async () => {
-  const originalFetch = globalThis.fetch;
-  let calls = 0;
-
-  globalThis.fetch = (async () => {
-    calls += 1;
-    if (calls === 1) throw new TypeError('fallo de red simulado');
-    return jsonResponse({ messages: [{ id: 'wamid.red-recuperada' }] }, 200);
-  }) as typeof fetch;
-
-  try {
-    const result = await sendText('5492915550000', 'Prueba');
-    assert.equal(calls, 2);
-    assert.equal(result.messages?.[0]?.id, 'wamid.red-recuperada');
-  } finally {
-    globalThis.fetch = originalFetch;
-  }
-});
-
-test('respeta Retry-After sin exceder el máximo de reintentos', async () => {
+test('respeta Retry-After en operaciones idempotentes sin exceder el máximo', async () => {
   const originalFetch = globalThis.fetch;
   let calls = 0;
 
@@ -103,11 +138,12 @@ test('respeta Retry-After sin exceder el máximo de reintentos', async () => {
 
   try {
     await assert.rejects(
-      sendText('5492915550000', 'Prueba'),
+      markAsRead('wamid.entrada'),
       (error: unknown) => {
         assert.ok(error instanceof AppError);
         assert.equal(error.details?.httpStatus, 429);
         assert.equal(error.details?.transient, true);
+        assert.equal(error.details?.deliveryUnknown, false);
         assert.equal(error.details?.attempts, 3);
         return true;
       }
