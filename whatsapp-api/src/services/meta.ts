@@ -1,6 +1,17 @@
 import { config, isMetaSendingConfigured } from '../config.js';
 import { AppError } from '../errors/AppError.js';
 
+const TRANSIENT_HTTP_STATUSES = new Set([429, 500, 502, 503, 504]);
+const MAX_RETRY_DELAY_MS = 5_000;
+
+type MetaErrorEnvelope = {
+  error?: {
+    message?: string;
+    code?: number;
+    error_subcode?: number;
+  };
+};
+
 function getBaseUrl(): string {
   if (!isMetaSendingConfigured()) {
     throw new AppError(
@@ -12,34 +23,117 @@ function getBaseUrl(): string {
   return `https://graph.facebook.com/${config.META_GRAPH_VERSION}/${config.WHATSAPP_PHONE_NUMBER_ID}`;
 }
 
-async function metaRequest<T>(path: string, body: unknown): Promise<T> {
-  const response = await fetch(`${getBaseUrl()}${path}`, {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${config.WHATSAPP_ACCESS_TOKEN}`,
-      'Content-Type': 'application/json'
-    },
-    body: JSON.stringify(body)
-  });
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
 
-  let data: T & { error?: { message?: string; code?: number; error_subcode?: number } };
+function retryDelayMs(attempt: number, response?: Response): number {
+  const retryAfter = response?.headers.get('retry-after');
+  if (retryAfter) {
+    const seconds = Number(retryAfter);
+    if (Number.isFinite(seconds) && seconds >= 0) {
+      return Math.min(seconds * 1_000, MAX_RETRY_DELAY_MS);
+    }
+
+    const date = Date.parse(retryAfter);
+    if (Number.isFinite(date)) {
+      return Math.min(Math.max(0, date - Date.now()), MAX_RETRY_DELAY_MS);
+    }
+  }
+
+  return Math.min(config.META_RETRY_BASE_MS * 2 ** attempt, MAX_RETRY_DELAY_MS);
+}
+
+async function fetchWithTimeout(url: string, body: unknown): Promise<Response> {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), config.META_REQUEST_TIMEOUT_MS);
+
   try {
-    data = (await response.json()) as T & {
-      error?: { message?: string; code?: number; error_subcode?: number };
-    };
-  } catch {
-    throw new AppError(`Meta respondió HTTP ${response.status} sin JSON válido`, 502);
+    return await fetch(url, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${config.WHATSAPP_ACCESS_TOKEN}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(body),
+      signal: controller.signal
+    });
+  } catch (error) {
+    if (controller.signal.aborted) {
+      throw new AppError(
+        `Meta no respondió dentro de ${config.META_REQUEST_TIMEOUT_MS} ms`,
+        504,
+        { transient: true }
+      );
+    }
+    throw error;
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+async function metaRequest<T>(path: string, body: unknown): Promise<T> {
+  const url = `${getBaseUrl()}${path}`;
+
+  for (let attempt = 0; attempt <= config.META_MAX_RETRIES; attempt += 1) {
+    try {
+      const response = await fetchWithTimeout(url, body);
+      let data: T & MetaErrorEnvelope;
+
+      try {
+        data = (await response.json()) as T & MetaErrorEnvelope;
+      } catch {
+        if (TRANSIENT_HTTP_STATUSES.has(response.status) && attempt < config.META_MAX_RETRIES) {
+          await sleep(retryDelayMs(attempt, response));
+          continue;
+        }
+        throw new AppError(`Meta respondió HTTP ${response.status} sin JSON válido`, 502, {
+          httpStatus: response.status,
+          transient: TRANSIENT_HTTP_STATUSES.has(response.status),
+          attempts: attempt + 1
+        });
+      }
+
+      if (response.ok) return data;
+
+      const transient = TRANSIENT_HTTP_STATUSES.has(response.status);
+      if (transient && attempt < config.META_MAX_RETRIES) {
+        await sleep(retryDelayMs(attempt, response));
+        continue;
+      }
+
+      const message = data.error?.message ?? `Meta respondió HTTP ${response.status}`;
+      throw new AppError(message, 502, {
+        metaCode: data.error?.code,
+        metaSubcode: data.error?.error_subcode,
+        httpStatus: response.status,
+        transient,
+        attempts: attempt + 1
+      });
+    } catch (error) {
+      if (error instanceof AppError) {
+        const transient = error.details?.transient === true;
+        if (transient && attempt < config.META_MAX_RETRIES) {
+          await sleep(retryDelayMs(attempt));
+          continue;
+        }
+        throw error;
+      }
+
+      if (attempt < config.META_MAX_RETRIES) {
+        await sleep(retryDelayMs(attempt));
+        continue;
+      }
+
+      throw new AppError('No se pudo conectar con Meta después de varios intentos', 502, {
+        transient: true,
+        attempts: attempt + 1,
+        cause: error instanceof Error ? error.name : 'unknown'
+      });
+    }
   }
 
-  if (!response.ok) {
-    const message = data.error?.message ?? `Meta respondió HTTP ${response.status}`;
-    throw new AppError(message, 502, {
-      metaCode: data.error?.code,
-      metaSubcode: data.error?.error_subcode,
-      httpStatus: response.status
-    });
-  }
-  return data;
+  throw new AppError('No se pudo completar la solicitud a Meta', 502);
 }
 
 export type SendResult = {
