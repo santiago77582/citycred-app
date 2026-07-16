@@ -2,11 +2,13 @@ databases:
   - name: citycred-whatsapp-db
     databaseName: citycred_whatsapp
     user: citycred
+    plan: free
 
 services:
   - type: web
     name: citycred-whatsapp-api
     runtime: docker
+    plan: free
     healthCheckPath: /health
     envVars:
       - key: DATABASE_URL
