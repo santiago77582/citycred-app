@@ -36,6 +36,7 @@ async function persistOutbound(params: {
   const conversation = await upsertConversation(contact.id);
   const wamid = params.result?.messages?.[0]?.id ?? null;
   const metaCode = params.error?.details?.metaCode;
+  const deliveryUnknown = params.error?.details?.deliveryUnknown === true;
 
   await insertMessage({
     wamid,
@@ -43,7 +44,7 @@ async function persistOutbound(params: {
     direction: 'OUTBOUND',
     type: params.type,
     text: params.text,
-    status: params.error ? 'FAILED' : 'PENDING',
+    status: params.error ? (deliveryUnknown ? 'UNKNOWN' : 'FAILED') : 'PENDING',
     errorCode: metaCode !== undefined && metaCode !== null ? String(metaCode) : null,
     errorMessage: params.error?.message ?? null,
     raw: {
@@ -55,6 +56,10 @@ async function persistOutbound(params: {
   });
 
   return wamid;
+}
+
+function shouldPersistMetaFailure(error: unknown): error is AppError {
+  return error instanceof AppError && (error.statusCode === 502 || error.statusCode === 504);
 }
 
 messagesRouter.post('/text', async (req, res) => {
@@ -73,7 +78,7 @@ messagesRouter.post('/text', async (req, res) => {
     });
     res.status(201).json({ wamid, to: destino, status: 'PENDING' });
   } catch (error) {
-    if (error instanceof AppError && error.statusCode === 502) {
+    if (shouldPersistMetaFailure(error)) {
       await persistOutbound({ to: destino, type: 'text', text: body, request: solicitud, error });
     }
     throw error;
@@ -96,7 +101,7 @@ messagesRouter.post('/template', async (req, res) => {
     });
     res.status(201).json({ wamid, to: destino, templateName, status: 'PENDING' });
   } catch (error) {
-    if (error instanceof AppError && error.statusCode === 502) {
+    if (shouldPersistMetaFailure(error)) {
       await persistOutbound({
         to: destino,
         type: 'template',
