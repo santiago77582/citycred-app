@@ -89,8 +89,9 @@ export async function insertMessage(params: {
   raw: unknown;
   errorCode?: string | null;
   errorMessage?: string | null;
-}): Promise<boolean> {
-  const result = await pool.query(
+}): Promise<string | null> {
+  const id = randomUUID();
+  const result = await pool.query<{ id: string }>(
     `INSERT INTO messages (
        id, wamid, conversation_id, direction, type, text, status, error_code, error_message, raw
      )
@@ -98,7 +99,7 @@ export async function insertMessage(params: {
      ON CONFLICT (wamid) DO NOTHING
      RETURNING id`,
     [
-      randomUUID(),
+      id,
       params.wamid,
       params.conversationId,
       params.direction,
@@ -110,7 +111,7 @@ export async function insertMessage(params: {
       JSON.stringify(params.raw ?? null)
     ]
   );
-  return result.rowCount === 1;
+  return result.rows[0]?.id ?? null;
 }
 
 export async function updateMessageStatus(params: {
