@@ -12,6 +12,11 @@ type MetaErrorEnvelope = {
   };
 };
 
+type RequestPolicy = {
+  retryTransient: boolean;
+  deliveryCanBeAmbiguous: boolean;
+};
+
 function getBaseUrl(): string {
   if (!isMetaSendingConfigured()) {
     throw new AppError(
@@ -44,7 +49,11 @@ function retryDelayMs(attempt: number, response?: Response): number {
   return Math.min(config.META_RETRY_BASE_MS * 2 ** attempt, MAX_RETRY_DELAY_MS);
 }
 
-async function fetchWithTimeout(url: string, body: unknown): Promise<Response> {
+async function fetchWithTimeout(
+  url: string,
+  body: unknown,
+  deliveryCanBeAmbiguous: boolean
+): Promise<Response> {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), config.META_REQUEST_TIMEOUT_MS);
 
@@ -63,7 +72,7 @@ async function fetchWithTimeout(url: string, body: unknown): Promise<Response> {
       throw new AppError(
         `Meta no respondió dentro de ${config.META_REQUEST_TIMEOUT_MS} ms`,
         504,
-        { transient: true }
+        { transient: true, deliveryUnknown: deliveryCanBeAmbiguous }
       );
     }
     throw error;
@@ -72,24 +81,31 @@ async function fetchWithTimeout(url: string, body: unknown): Promise<Response> {
   }
 }
 
-async function metaRequest<T>(path: string, body: unknown): Promise<T> {
+async function metaRequest<T>(
+  path: string,
+  body: unknown,
+  policy: RequestPolicy
+): Promise<T> {
   const url = `${getBaseUrl()}${path}`;
+  const maxRetries = policy.retryTransient ? config.META_MAX_RETRIES : 0;
 
-  for (let attempt = 0; attempt <= config.META_MAX_RETRIES; attempt += 1) {
+  for (let attempt = 0; attempt <= maxRetries; attempt += 1) {
     try {
-      const response = await fetchWithTimeout(url, body);
+      const response = await fetchWithTimeout(url, body, policy.deliveryCanBeAmbiguous);
       let data: T & MetaErrorEnvelope;
 
       try {
         data = (await response.json()) as T & MetaErrorEnvelope;
       } catch {
-        if (TRANSIENT_HTTP_STATUSES.has(response.status) && attempt < config.META_MAX_RETRIES) {
+        const transient = TRANSIENT_HTTP_STATUSES.has(response.status);
+        if (transient && attempt < maxRetries) {
           await sleep(retryDelayMs(attempt, response));
           continue;
         }
         throw new AppError(`Meta respondió HTTP ${response.status} sin JSON válido`, 502, {
           httpStatus: response.status,
-          transient: TRANSIENT_HTTP_STATUSES.has(response.status),
+          transient,
+          deliveryUnknown: policy.deliveryCanBeAmbiguous && response.status >= 500,
           attempts: attempt + 1
         });
       }
@@ -97,7 +113,7 @@ async function metaRequest<T>(path: string, body: unknown): Promise<T> {
       if (response.ok) return data;
 
       const transient = TRANSIENT_HTTP_STATUSES.has(response.status);
-      if (transient && attempt < config.META_MAX_RETRIES) {
+      if (transient && attempt < maxRetries) {
         await sleep(retryDelayMs(attempt, response));
         continue;
       }
@@ -108,28 +124,36 @@ async function metaRequest<T>(path: string, body: unknown): Promise<T> {
         metaSubcode: data.error?.error_subcode,
         httpStatus: response.status,
         transient,
+        deliveryUnknown: policy.deliveryCanBeAmbiguous && response.status >= 500,
         attempts: attempt + 1
       });
     } catch (error) {
       if (error instanceof AppError) {
         const transient = error.details?.transient === true;
-        if (transient && attempt < config.META_MAX_RETRIES) {
+        if (transient && attempt < maxRetries) {
           await sleep(retryDelayMs(attempt));
           continue;
         }
         throw error;
       }
 
-      if (attempt < config.META_MAX_RETRIES) {
+      if (attempt < maxRetries) {
         await sleep(retryDelayMs(attempt));
         continue;
       }
 
-      throw new AppError('No se pudo conectar con Meta después de varios intentos', 502, {
-        transient: true,
-        attempts: attempt + 1,
-        cause: error instanceof Error ? error.name : 'unknown'
-      });
+      throw new AppError(
+        policy.deliveryCanBeAmbiguous
+          ? 'No se pudo confirmar si Meta aceptó el mensaje; no se reintentó para evitar duplicados'
+          : 'No se pudo conectar con Meta después de varios intentos',
+        502,
+        {
+          transient: true,
+          deliveryUnknown: policy.deliveryCanBeAmbiguous,
+          attempts: attempt + 1,
+          cause: error instanceof Error ? error.name : 'unknown'
+        }
+      );
     }
   }
 
@@ -143,13 +167,17 @@ export type SendResult = {
 };
 
 export function sendText(to: string, text: string, previewUrl = false): Promise<SendResult> {
-  return metaRequest('/messages', {
-    messaging_product: 'whatsapp',
-    recipient_type: 'individual',
-    to,
-    type: 'text',
-    text: { preview_url: previewUrl, body: text }
-  });
+  return metaRequest(
+    '/messages',
+    {
+      messaging_product: 'whatsapp',
+      recipient_type: 'individual',
+      to,
+      type: 'text',
+      text: { preview_url: previewUrl, body: text }
+    },
+    { retryTransient: false, deliveryCanBeAmbiguous: true }
+  );
 }
 
 export function sendTemplate(
@@ -158,22 +186,30 @@ export function sendTemplate(
   languageCode: string,
   components?: unknown[]
 ): Promise<SendResult> {
-  return metaRequest('/messages', {
-    messaging_product: 'whatsapp',
-    to,
-    type: 'template',
-    template: {
-      name: templateName,
-      language: { code: languageCode },
-      ...(components ? { components } : {})
-    }
-  });
+  return metaRequest(
+    '/messages',
+    {
+      messaging_product: 'whatsapp',
+      to,
+      type: 'template',
+      template: {
+        name: templateName,
+        language: { code: languageCode },
+        ...(components ? { components } : {})
+      }
+    },
+    { retryTransient: false, deliveryCanBeAmbiguous: true }
+  );
 }
 
 export function markAsRead(messageId: string): Promise<unknown> {
-  return metaRequest('/messages', {
-    messaging_product: 'whatsapp',
-    status: 'read',
-    message_id: messageId
-  });
+  return metaRequest(
+    '/messages',
+    {
+      messaging_product: 'whatsapp',
+      status: 'read',
+      message_id: messageId
+    },
+    { retryTransient: true, deliveryCanBeAmbiguous: false }
+  );
 }
