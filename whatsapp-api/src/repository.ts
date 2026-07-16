@@ -2,7 +2,14 @@ import { randomUUID } from 'node:crypto';
 import { pool } from './db.js';
 import { AppError } from './errors/AppError.js';
 
-export type Status = 'PENDING' | 'SENT' | 'DELIVERED' | 'READ' | 'FAILED' | 'RECEIVED';
+export type Status =
+  | 'UNKNOWN'
+  | 'PENDING'
+  | 'SENT'
+  | 'DELIVERED'
+  | 'READ'
+  | 'FAILED'
+  | 'RECEIVED';
 export type Direction = 'INBOUND' | 'OUTBOUND';
 
 export type ContactRow = {
@@ -113,7 +120,8 @@ export async function updateMessageStatus(params: {
   errorMessage?: string | null;
   raw?: unknown;
 }): Promise<boolean> {
-  // Nunca se retrocede un estado (por ejemplo de READ a DELIVERED); FAILED siempre gana.
+  // Nunca se retrocede un estado. UNKNOWN puede avanzar si luego llega un webhook con wamid.
+  // FAILED siempre gana porque representa un rechazo definitivo informado por Meta.
   const result = await pool.query(
     `UPDATE messages
      SET status = $2,
@@ -126,6 +134,7 @@ export async function updateMessageStatus(params: {
        AND (
          $2 = 'FAILED'
          OR CASE status
+              WHEN 'UNKNOWN' THEN -1
               WHEN 'PENDING' THEN 0
               WHEN 'SENT' THEN 1
               WHEN 'DELIVERED' THEN 2
@@ -134,6 +143,7 @@ export async function updateMessageStatus(params: {
             END
             <
             CASE $2
+              WHEN 'UNKNOWN' THEN -1
               WHEN 'PENDING' THEN 0
               WHEN 'SENT' THEN 1
               WHEN 'DELIVERED' THEN 2
