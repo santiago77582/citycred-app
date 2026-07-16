@@ -29,7 +29,10 @@ const schema = z.object({
   WHATSAPP_ACCESS_TOKEN: optionalSecret,
   WHATSAPP_PHONE_NUMBER_ID: optionalSecret,
   WHATSAPP_BUSINESS_ACCOUNT_ID: optionalSecret,
-  WHATSAPP_VERIFY_TOKEN: optionalSecret
+  WHATSAPP_VERIFY_TOKEN: optionalSecret,
+  META_REQUEST_TIMEOUT_MS: z.coerce.number().int().min(1_000).max(60_000).default(10_000),
+  META_MAX_RETRIES: z.coerce.number().int().min(0).max(3).default(2),
+  META_RETRY_BASE_MS: z.coerce.number().int().min(50).max(5_000).default(250)
 });
 
 const parsed = schema.safeParse(process.env);
