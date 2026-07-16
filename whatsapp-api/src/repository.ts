@@ -2,8 +2,50 @@ import { randomUUID } from 'node:crypto';
 import { pool } from './db.js';
 import { AppError } from './errors/AppError.js';
 
-export type Status = 'PENDING' | 'SENT' | 'DELIVERED' | 'READ' | 'FAILED' | 'RECEIVED';
+export type Status =
+  | 'UNKNOWN'
+  | 'PENDING'
+  | 'SENT'
+  | 'DELIVERED'
+  | 'READ'
+  | 'FAILED'
+  | 'RECEIVED';
 export type Direction = 'INBOUND' | 'OUTBOUND';
+
+const OUTBOUND_STATUS_RANK = {
+  UNKNOWN: -1,
+  PENDING: 0,
+  SENT: 1,
+  DELIVERED: 2,
+  READ: 3,
+  FAILED: 99
+} satisfies Record<Exclude<Status, 'RECEIVED'>, number>;
+
+function outboundStatusRank(status: Status): number {
+  if (status === 'RECEIVED') return -100;
+  return OUTBOUND_STATUS_RANK[status];
+}
+
+/**
+ * Regla de transición para mensajes salientes.
+ *
+ * - FAILED es terminal: ningún estado posterior puede revivir el mensaje.
+ * - Cualquier estado puede pasar a FAILED si Meta informa un rechazo definitivo.
+ * - El resto solo avanza de forma monotónica.
+ */
+export function canTransitionOutboundStatus(current: Status, next: Status): boolean {
+  if (current === 'RECEIVED' || next === 'RECEIVED') return false;
+  if (next === 'FAILED') return true;
+  if (current === 'FAILED') return false;
+  return outboundStatusRank(current) < outboundStatusRank(next);
+}
+
+function statusRankSql(expression: string): string {
+  const cases = Object.entries(OUTBOUND_STATUS_RANK)
+    .map(([status, rank]) => `WHEN '${status}' THEN ${rank}`)
+    .join('\n               ');
+  return `CASE ${expression}\n               ${cases}\n               ELSE -100\n             END`;
+}
 
 export type ContactRow = {
   id: string;
@@ -82,8 +124,9 @@ export async function insertMessage(params: {
   raw: unknown;
   errorCode?: string | null;
   errorMessage?: string | null;
-}): Promise<boolean> {
-  const result = await pool.query(
+}): Promise<string | null> {
+  const id = randomUUID();
+  const result = await pool.query<{ id: string }>(
     `INSERT INTO messages (
        id, wamid, conversation_id, direction, type, text, status, error_code, error_message, raw
      )
@@ -91,7 +134,7 @@ export async function insertMessage(params: {
      ON CONFLICT (wamid) DO NOTHING
      RETURNING id`,
     [
-      randomUUID(),
+      id,
       params.wamid,
       params.conversationId,
       params.direction,
@@ -103,7 +146,7 @@ export async function insertMessage(params: {
       JSON.stringify(params.raw ?? null)
     ]
   );
-  return result.rowCount === 1;
+  return result.rows[0]?.id ?? null;
 }
 
 export async function updateMessageStatus(params: {
@@ -113,7 +156,11 @@ export async function updateMessageStatus(params: {
   errorMessage?: string | null;
   raw?: unknown;
 }): Promise<boolean> {
-  // Nunca se retrocede un estado (por ejemplo de READ a DELIVERED); FAILED siempre gana.
+  const currentRankSql = statusRankSql('status');
+  const nextRankSql = statusRankSql('$2');
+
+  // Nunca se retrocede un estado. UNKNOWN puede avanzar si luego llega un webhook con wamid.
+  // FAILED siempre gana al entrar y queda terminal una vez almacenado.
   const result = await pool.query(
     `UPDATE messages
      SET status = $2,
@@ -125,21 +172,10 @@ export async function updateMessageStatus(params: {
        AND direction = 'OUTBOUND'
        AND (
          $2 = 'FAILED'
-         OR CASE status
-              WHEN 'PENDING' THEN 0
-              WHEN 'SENT' THEN 1
-              WHEN 'DELIVERED' THEN 2
-              WHEN 'READ' THEN 3
-              ELSE -1
-            END
-            <
-            CASE $2
-              WHEN 'PENDING' THEN 0
-              WHEN 'SENT' THEN 1
-              WHEN 'DELIVERED' THEN 2
-              WHEN 'READ' THEN 3
-              ELSE -1
-            END
+         OR (
+           status <> 'FAILED'
+           AND ${currentRankSql} < ${nextRankSql}
+         )
        )
      RETURNING id`,
     [
