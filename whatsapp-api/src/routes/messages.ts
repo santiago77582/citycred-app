@@ -1,7 +1,12 @@
 import { Router } from 'express';
 import { z } from 'zod';
 import { AppError } from '../errors/AppError.js';
-import { insertMessage, upsertContact, upsertConversation } from '../repository.js';
+import {
+  insertMessage,
+  upsertContact,
+  upsertConversation,
+  type Status
+} from '../repository.js';
 import { markAsRead, sendTemplate, sendText, type SendResult } from '../services/meta.js';
 import { normalizePhone } from '../utils/phone.js';
 
@@ -24,6 +29,12 @@ const markReadSchema = z.object({
   messageId: z.string().min(1)
 });
 
+type PersistedOutbound = {
+  messageId: string | null;
+  wamid: string | null;
+  status: Extract<Status, 'UNKNOWN' | 'PENDING' | 'FAILED'>;
+};
+
 async function persistOutbound(params: {
   to: string;
   type: string;
@@ -31,19 +42,23 @@ async function persistOutbound(params: {
   request: unknown;
   result?: SendResult;
   error?: AppError;
-}): Promise<string | null> {
+}): Promise<PersistedOutbound> {
   const contact = await upsertContact(params.to, null);
   const conversation = await upsertConversation(contact.id);
   const wamid = params.result?.messages?.[0]?.id ?? null;
   const metaCode = params.error?.details?.metaCode;
+  const deliveryUnknown = params.error?.details?.deliveryUnknown === true;
+  const status: PersistedOutbound['status'] = params.error
+    ? (deliveryUnknown ? 'UNKNOWN' : 'FAILED')
+    : (wamid ? 'PENDING' : 'UNKNOWN');
 
-  await insertMessage({
+  const messageId = await insertMessage({
     wamid,
     conversationId: conversation.id,
     direction: 'OUTBOUND',
     type: params.type,
     text: params.text,
-    status: params.error ? 'FAILED' : 'PENDING',
+    status,
     errorCode: metaCode !== undefined && metaCode !== null ? String(metaCode) : null,
     errorMessage: params.error?.message ?? null,
     raw: {
@@ -54,7 +69,23 @@ async function persistOutbound(params: {
     }
   });
 
-  return wamid;
+  return { messageId, wamid, status };
+}
+
+function shouldPersistMetaFailure(error: unknown): error is AppError {
+  return error instanceof AppError && (error.statusCode === 502 || error.statusCode === 504);
+}
+
+function unknownResponse(persisted: PersistedOutbound, extra: Record<string, unknown>) {
+  return {
+    ...extra,
+    messageId: persisted.messageId,
+    wamid: null,
+    status: 'UNKNOWN',
+    retrySafe: false,
+    warning:
+      'No se pudo confirmar si Meta aceptó el envío. No lo reintentes automáticamente porque podría duplicarse.'
+  };
 }
 
 messagesRouter.post('/text', async (req, res) => {
@@ -64,17 +95,32 @@ messagesRouter.post('/text', async (req, res) => {
 
   try {
     const result = await sendText(destino, body, previewUrl);
-    const wamid = await persistOutbound({
+    const persisted = await persistOutbound({
       to: destino,
       type: 'text',
       text: body,
       request: solicitud,
       result
     });
-    res.status(201).json({ wamid, to: destino, status: 'PENDING' });
+    res.status(201).json({
+      messageId: persisted.messageId,
+      wamid: persisted.wamid,
+      to: destino,
+      status: persisted.status
+    });
   } catch (error) {
-    if (error instanceof AppError && error.statusCode === 502) {
-      await persistOutbound({ to: destino, type: 'text', text: body, request: solicitud, error });
+    if (shouldPersistMetaFailure(error)) {
+      const persisted = await persistOutbound({
+        to: destino,
+        type: 'text',
+        text: body,
+        request: solicitud,
+        error
+      });
+      if (persisted.status === 'UNKNOWN') {
+        res.status(202).json(unknownResponse(persisted, { to: destino }));
+        return;
+      }
     }
     throw error;
   }
@@ -87,23 +133,33 @@ messagesRouter.post('/template', async (req, res) => {
 
   try {
     const result = await sendTemplate(destino, templateName, languageCode, components);
-    const wamid = await persistOutbound({
+    const persisted = await persistOutbound({
       to: destino,
       type: 'template',
       text: `plantilla:${templateName}`,
       request: solicitud,
       result
     });
-    res.status(201).json({ wamid, to: destino, templateName, status: 'PENDING' });
+    res.status(201).json({
+      messageId: persisted.messageId,
+      wamid: persisted.wamid,
+      to: destino,
+      templateName,
+      status: persisted.status
+    });
   } catch (error) {
-    if (error instanceof AppError && error.statusCode === 502) {
-      await persistOutbound({
+    if (shouldPersistMetaFailure(error)) {
+      const persisted = await persistOutbound({
         to: destino,
         type: 'template',
         text: `plantilla:${templateName}`,
         request: solicitud,
         error
       });
+      if (persisted.status === 'UNKNOWN') {
+        res.status(202).json(unknownResponse(persisted, { to: destino, templateName }));
+        return;
+      }
     }
     throw error;
   }

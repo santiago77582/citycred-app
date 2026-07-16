@@ -23,7 +23,7 @@ CREATE TABLE IF NOT EXISTS messages (
   direction TEXT NOT NULL CHECK (direction IN ('INBOUND','OUTBOUND')),
   type TEXT NOT NULL,
   text TEXT,
-  status TEXT NOT NULL CHECK (status IN ('PENDING','SENT','DELIVERED','READ','FAILED','RECEIVED')),
+  status TEXT NOT NULL CHECK (status IN ('UNKNOWN','PENDING','SENT','DELIVERED','READ','FAILED','RECEIVED')),
   error_code TEXT,
   error_message TEXT,
   raw JSONB NOT NULL,

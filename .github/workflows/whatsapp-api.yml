@@ -2,7 +2,9 @@ name: WhatsApp API
 
 on:
   push:
-    branches: [main, agent/whatsapp-cloud-api]
+    branches:
+      - main
+      - 'agent/**'
     paths:
       - 'whatsapp-api/**'
       - '.github/workflows/whatsapp-api.yml'
@@ -11,9 +13,17 @@ on:
       - 'whatsapp-api/**'
       - '.github/workflows/whatsapp-api.yml'
 
+permissions:
+  contents: read
+
+concurrency:
+  group: whatsapp-api-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   validate:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     defaults:
       run:
         working-directory: whatsapp-api
