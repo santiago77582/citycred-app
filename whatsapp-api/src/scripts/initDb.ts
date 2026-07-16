@@ -8,6 +8,7 @@ import { config } from '../config.js';
 import { logger } from '../utils/logger.js';
 
 const { Pool } = pg;
+const MIGRATION_ADVISORY_LOCK_ID = '4213377121001';
 
 function resolveSqlDir(): string {
   const candidates = [
@@ -41,8 +42,13 @@ async function main(): Promise<void> {
     max: 1
   });
   const client = await pool.connect();
+  let lockAcquired = false;
 
   try {
+    await client.query('SELECT pg_advisory_lock($1::bigint)', [MIGRATION_ADVISORY_LOCK_ID]);
+    lockAcquired = true;
+    logger.debug('Lock exclusivo de migraciones adquirido');
+
     await client.query(`
       CREATE TABLE IF NOT EXISTS schema_migrations (
         filename TEXT PRIMARY KEY,
@@ -87,6 +93,14 @@ async function main(): Promise<void> {
       }
     }
   } finally {
+    if (lockAcquired) {
+      try {
+        await client.query('SELECT pg_advisory_unlock($1::bigint)', [MIGRATION_ADVISORY_LOCK_ID]);
+        logger.debug('Lock exclusivo de migraciones liberado');
+      } catch (error) {
+        logger.error({ err: error }, 'No se pudo liberar explícitamente el lock de migraciones');
+      }
+    }
     client.release();
     await pool.end();
   }
