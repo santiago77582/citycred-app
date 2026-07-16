@@ -1,0 +1,89 @@
+openapi: 3.1.0
+info:
+  title: WhatsApp CityCred API
+  version: 1.0.0
+  description: API REST que envía y recibe mensajes mediante WhatsApp Cloud API oficial de Meta.
+servers:
+  - url: https://tu-dominio.com
+components:
+  securitySchemes:
+    ApiKey:
+      type: apiKey
+      in: header
+      name: x-api-key
+security:
+  - ApiKey: []
+paths:
+  /health:
+    get:
+      security: []
+      responses:
+        '200': { description: Servicio disponible }
+  /webhooks/whatsapp:
+    get:
+      security: []
+      description: Verificación del webhook de Meta
+      responses:
+        '200': { description: Challenge devuelto }
+    post:
+      security: []
+      description: Recepción de mensajes y estados de Meta
+      responses:
+        '200': { description: Evento aceptado }
+  /api/v1/messages/text:
+    post:
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [to, body]
+              properties:
+                to: { type: string, example: '5492920123456' }
+                body: { type: string, example: 'Hola, te escribimos de CityCred.' }
+                previewUrl: { type: boolean, default: false }
+      responses:
+        '201': { description: Mensaje enviado }
+  /api/v1/messages/template:
+    post:
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [to, templateName]
+              properties:
+                to: { type: string }
+                templateName: { type: string }
+                languageCode: { type: string, default: es_AR }
+                components: { type: array, items: {} }
+      responses:
+        '201': { description: Plantilla enviada }
+  /api/v1/messages/mark-read:
+    post:
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [messageId]
+              properties:
+                messageId: { type: string }
+      responses:
+        '200': { description: Mensaje marcado como leído }
+  /api/v1/conversations:
+    get:
+      responses:
+        '200': { description: Lista de conversaciones }
+  /api/v1/conversations/{waId}/messages:
+    get:
+      parameters:
+        - in: path
+          name: waId
+          required: true
+          schema: { type: string }
+      responses:
+        '200': { description: Historial del contacto }

@@ -1,0 +1,20 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: citycred
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-citycred_local_only}
+      POSTGRES_DB: citycred_whatsapp
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U citycred -d citycred_whatsapp"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    volumes:
+      - whatsapp_citycred_pgdata:/var/lib/postgresql/data
+
+volumes:
+  whatsapp_citycred_pgdata:
