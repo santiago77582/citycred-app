@@ -42,9 +42,11 @@ webhooksRouter.post('/whatsapp', async (req, res) => {
   try {
     await processWebhook(req.body as MetaWebhookPayload);
   } catch (error) {
-    // El evento ya quedó guardado con su error en webhook_events; se responde 200
-    // para que Meta no reintente indefinidamente.
+    // No se confirma como recibido un evento que no pudo guardarse o procesarse.
+    // La deduplicación por wamid permite procesar de forma segura un reintento.
     logger.error({ err: error }, 'El webhook se recibió pero falló su procesamiento');
+    res.status(500).json({ received: false, error: 'No se pudo procesar el webhook.' });
+    return;
   }
 
   res.status(200).json({ received: true });
