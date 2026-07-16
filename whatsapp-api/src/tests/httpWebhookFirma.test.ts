@@ -116,12 +116,13 @@ test('rechaza un payload que supera el límite de 1 MB sin persistirlo', async (
 
 test('un payload firmado con estructura inesperada no rompe la API', async () => {
   // entry con un tipo no iterable: el procesamiento falla de forma controlada,
-  // el evento queda registrado con su error y la API no devuelve un 5xx crudo.
+  // el evento queda registrado con su error y (contrato del PR #2) se responde
+  // 500 para que Meta reintente en lugar de confirmar un evento no procesado.
   const cuerpo = JSON.stringify({ object: 'whatsapp_business_account', entry: 123 });
 
   const res = await postWebhook(baseUrl, cuerpo, firmaDeMeta(cuerpo, TEST_META_APP_SECRET));
 
-  assert.ok(res.status === 200 || res.status === 500);
+  assert.equal(res.status, 500);
   const eventos = await db.consultar('SELECT error FROM webhook_events');
   assert.equal(eventos.rows.length, 1);
   assert.notEqual(eventos.rows[0]?.error, null);

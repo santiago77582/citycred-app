@@ -158,27 +158,20 @@ test('FAILED gana aunque el mensaje ya estuviera en READ', async () => {
   assert.equal(await estadoDelMensaje(wamid), 'FAILED');
 });
 
-test(
-  'FAILED debería ser definitivo: un delivered posterior no tendría que pisarlo',
-  // DEFECTO DOCUMENTADO (no se corrige acá porque src/repository.ts está
-  // reservado por el PR #7): en updateMessageStatus, el estado actual FAILED
-  // cae en el ELSE -1 del CASE, por lo que cualquier estado posterior
-  // (SENT/DELIVERED/READ) lo sobreescribe. Un reintento fuera de orden de Meta
-  // puede "revivir" un mensaje fallado. Detalle en el PR de esta suite.
-  { todo: 'defecto en updateMessageStatus; corregir en repository.ts cuando cierre el PR #7' },
-  async () => {
-    const wamid = 'wamid.fallado.3';
-    await sembrarMensajeSaliente(wamid, 'PENDING');
+// Regresión del defecto corregido por el PR #7: FAILED es terminal y un
+// reintento fuera de orden de Meta no puede "revivir" un mensaje fallado.
+test('FAILED es definitivo: un delivered posterior no lo pisa', async () => {
+  const wamid = 'wamid.fallado.3';
+  await sembrarMensajeSaliente(wamid, 'PENDING');
 
-    await enviarWebhookFirmado(
-      payloadEstado({ wamid, estado: 'failed', errores: [{ code: 1, title: 'Error definitivo' }] })
-    );
-    assert.equal(await estadoDelMensaje(wamid), 'FAILED');
+  await enviarWebhookFirmado(
+    payloadEstado({ wamid, estado: 'failed', errores: [{ code: 1, title: 'Error definitivo' }] })
+  );
+  assert.equal(await estadoDelMensaje(wamid), 'FAILED');
 
-    await enviarWebhookFirmado(payloadEstado({ wamid, estado: 'delivered' }));
-    assert.equal(await estadoDelMensaje(wamid), 'FAILED');
-  }
-);
+  await enviarWebhookFirmado(payloadEstado({ wamid, estado: 'delivered' }));
+  assert.equal(await estadoDelMensaje(wamid), 'FAILED');
+});
 
 test('un estado para un wamid desconocido responde 200 y no crea filas', async () => {
   const res = await enviarWebhookFirmado(
@@ -213,13 +206,11 @@ test('si falla la persistencia después de registrar el evento, el error queda r
   db.simularFalloDeBase((sql) => sql.includes('INSERT INTO messages'));
   const conFallo = await enviarWebhookFirmado(payload);
 
-  // Contrato actual en main: 200 (el evento quedó guardado con su error para
-  // reproceso). El PR #2 lo cambia a 500 para que Meta reintente solo.
-  // Lo invariante en ambos contratos: el evento no se pierde.
-  assert.ok(
-    conFallo.status === 200 || conFallo.status === 500,
-    `respuesta inesperada: HTTP ${conFallo.status}`
-  );
+  // Contrato del PR #2 (integrado): un evento que no pudo procesarse no se
+  // confirma como recibido; el 500 hace que Meta lo reintente.
+  assert.equal(conFallo.status, 500);
+  const cuerpoFallo = (await conFallo.json()) as Record<string, unknown>;
+  assert.equal(cuerpoFallo.received, false);
   const eventos = await db.consultar(
     'SELECT error FROM webhook_events ORDER BY received_at'
   );
@@ -235,22 +226,23 @@ test('si falla la persistencia después de registrar el evento, el error queda r
   assert.equal(await contarMensajes('wamid.reintento.1'), 1);
 });
 
-test(
-  'si ni siquiera se puede guardar el evento, la respuesta debería ser 5xx para que Meta reintente',
-  // COMPORTAMIENTO DESEADO (contrato del PR #2, aún no mergeado): hoy en main
-  // este caso devuelve 200 y el evento se pierde en silencio. Cuando el PR #2
-  // se integre, este test debe pasar y dejar de estar marcado como todo.
-  { todo: 'depende del PR #2 (webhook responde 500 cuando no puede persistir)' },
-  async () => {
-    const payload = payloadMensajeEntrante({
-      wamid: 'wamid.perdido.1',
-      de: '5492900000304',
-      texto: 'evento imposible de guardar'
-    });
+// Regresión del contrato del PR #2: un evento que ni siquiera pudo guardarse
+// no se confirma; el 5xx obliga a Meta a reintentarlo (no se pierde nada).
+test('si ni siquiera se puede guardar el evento, responde 5xx para que Meta reintente', async () => {
+  const payload = payloadMensajeEntrante({
+    wamid: 'wamid.perdido.1',
+    de: '5492900000304',
+    texto: 'evento imposible de guardar'
+  });
 
-    db.simularFalloDeBase((sql) => sql.includes('INSERT INTO webhook_events'));
-    const res = await enviarWebhookFirmado(payload);
+  db.simularFalloDeBase((sql) => sql.includes('INSERT INTO webhook_events'));
+  const res = await enviarWebhookFirmado(payload);
 
-    assert.ok(res.status >= 500, `esperaba 5xx para forzar reintento, llegó ${res.status}`);
-  }
-);
+  assert.ok(res.status >= 500, `esperaba 5xx para forzar reintento, llegó ${res.status}`);
+
+  // Meta reintenta con la base recuperada y el mensaje se procesa una sola vez.
+  db.restaurarBase();
+  const reintento = await enviarWebhookFirmado(payload);
+  assert.equal(reintento.status, 200);
+  assert.equal(await contarMensajes('wamid.perdido.1'), 1);
+});
