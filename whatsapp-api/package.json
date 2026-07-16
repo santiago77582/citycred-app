@@ -1,0 +1,39 @@
+{
+  "name": "whatsapp-citycred-api",
+  "version": "1.0.0",
+  "private": true,
+  "description": "API REST para integrar CityCred con WhatsApp Cloud API oficial de Meta",
+  "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "dev": "tsx watch src/server.ts",
+    "build": "tsc -p tsconfig.json",
+    "start": "node dist/scripts/initDb.js && node dist/server.js",
+    "typecheck": "tsc --noEmit",
+    "db:init": "tsx src/scripts/initDb.ts",
+    "test": "tsx --test src/tests/*.test.ts",
+    "start:server": "node dist/server.js",
+    "db:init:prod": "node dist/scripts/initDb.js"
+  },
+  "dependencies": {
+    "cors": "^2.8.5",
+    "dotenv": "^17.2.0",
+    "express": "^5.1.0",
+    "express-rate-limit": "^8.0.1",
+    "helmet": "^8.1.0",
+    "pino": "^9.7.0",
+    "pino-http": "^10.4.0",
+    "zod": "^4.0.5",
+    "pg": "^8.16.3"
+  },
+  "devDependencies": {
+    "@types/cors": "^2.8.19",
+    "@types/express": "^5.0.3",
+    "@types/node": "^24.0.13",
+    "tsx": "^4.20.3",
+    "typescript": "^5.8.3",
+    "@types/pg": "^8.15.4"
+  }
+}

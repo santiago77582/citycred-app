@@ -1,0 +1,31 @@
+name: WhatsApp API
+
+on:
+  push:
+    branches: [main, agent/whatsapp-cloud-api]
+    paths:
+      - 'whatsapp-api/**'
+      - '.github/workflows/whatsapp-api.yml'
+  pull_request:
+    paths:
+      - 'whatsapp-api/**'
+      - '.github/workflows/whatsapp-api.yml'
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: whatsapp-api
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: whatsapp-api/package-lock.json
+      - run: npm ci
+      - run: npm test
+      - run: npm run typecheck
+      - run: npm run build
+      - run: npm audit --omit=dev
