@@ -66,6 +66,7 @@ export type ConversationSummary = {
   profileName: string | null;
   lastMessageAt: string;
   lastMessageText: string | null;
+  botPausedUntil: string | null;
 };
 
 export type MessageSummary = {
@@ -112,6 +113,34 @@ export async function upsertConversation(contactId: string): Promise<Conversatio
     [randomUUID(), contactId]
   );
   return firstRow(result.rows);
+}
+
+export async function setConversationBotPause(
+  waId: string,
+  pausedUntil: Date | null
+): Promise<string | null> {
+  const contact = await upsertContact(waId, null);
+  const result = await pool.query<{ bot_paused_until: string | null }>(
+    `INSERT INTO conversations (id, contact_id, bot_paused_until)
+     VALUES ($1, $2, $3)
+     ON CONFLICT (contact_id) DO UPDATE SET
+       bot_paused_until = EXCLUDED.bot_paused_until,
+       updated_at = NOW()
+     RETURNING bot_paused_until`,
+    [randomUUID(), contact.id, pausedUntil]
+  );
+  return firstRow(result.rows).bot_paused_until;
+}
+
+export async function isConversationBotPaused(waId: string): Promise<boolean> {
+  const result = await pool.query<{ paused: boolean }>(
+    `SELECT COALESCE(c.bot_paused_until > NOW(), FALSE) AS paused
+     FROM conversations c
+     JOIN contacts ct ON ct.id = c.contact_id
+     WHERE ct.wa_id = $1`,
+    [waId]
+  );
+  return result.rows[0]?.paused ?? false;
 }
 
 export async function insertMessage(params: {
@@ -216,12 +245,14 @@ export async function listConversations(limit: number): Promise<ConversationSumm
     profile_name: string | null;
     last_message_at: string;
     last_message_text: string | null;
+    bot_paused_until: string | null;
   }>(
     `SELECT c.id,
             ct.wa_id,
             ct.phone,
             ct.profile_name,
             c.last_message_at,
+            c.bot_paused_until,
             (
               SELECT m.text FROM messages m
               WHERE m.conversation_id = c.id
@@ -240,7 +271,8 @@ export async function listConversations(limit: number): Promise<ConversationSumm
     phone: row.phone,
     profileName: row.profile_name,
     lastMessageAt: row.last_message_at,
-    lastMessageText: row.last_message_text
+    lastMessageText: row.last_message_text,
+    botPausedUntil: row.bot_paused_until
   }));
 }
 
