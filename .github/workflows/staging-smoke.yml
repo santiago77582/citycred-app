@@ -1,0 +1,51 @@
+name: WhatsApp API Staging Smoke Test
+
+on:
+  workflow_dispatch:
+    inputs:
+      base_url:
+        description: 'URL pública del staging, por ejemplo https://citycred-whatsapp-api-staging.onrender.com'
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Verificar health, autenticación y webhook aislado
+        env:
+          BASE_URL: ${{ inputs.base_url }}
+        run: |
+          node <<'NODE'
+          const base = process.env.BASE_URL?.replace(/\/+$/, '');
+          if (!base || !base.startsWith('https://')) {
+            throw new Error('base_url debe ser una URL HTTPS válida');
+          }
+
+          const healthResponse = await fetch(`${base}/health`);
+          const health = await healthResponse.json();
+          if (healthResponse.status !== 200 || health.status !== 'ok' || health.database !== 'ok') {
+            throw new Error(`Health inválido: HTTP ${healthResponse.status} ${JSON.stringify(health)}`);
+          }
+          if (health.meta?.envioConfigurado || health.meta?.webhookConfigurado) {
+            throw new Error('El staging no debe tener Meta configurado antes de la autorización del 7121');
+          }
+
+          const privateResponse = await fetch(`${base}/api/v1/conversations`);
+          if (privateResponse.status !== 401) {
+            throw new Error(`La API privada sin x-api-key debía responder 401, respondió ${privateResponse.status}`);
+          }
+
+          const verifyResponse = await fetch(
+            `${base}/webhooks/whatsapp?hub.mode=subscribe&hub.verify_token=invalido&hub.challenge=123`
+          );
+          if (verifyResponse.status !== 403) {
+            throw new Error(`El webhook sin configurar debía responder 403, respondió ${verifyResponse.status}`);
+          }
+
+          console.log('Staging correcto: base OK, Meta desconectado y endpoints protegidos.');
+          NODE
