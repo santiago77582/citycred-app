@@ -9,7 +9,7 @@ import { conversationsRouter } from './routes/conversations.js';
 import { healthRouter } from './routes/health.js';
 import { messagesRouter } from './routes/messages.js';
 import { webhooksRouter } from './routes/webhooks.js';
-import { logger } from './utils/logger.js';
+import { logger, sanitizeRequestUrl } from './utils/logger.js';
 
 export function createApp(): express.Express {
   const app = express();
@@ -19,7 +19,19 @@ export function createApp(): express.Express {
   app.disable('x-powered-by');
   app.use(helmet());
   app.use(cors());
-  app.use(pinoHttp({ logger }));
+  app.use(
+    pinoHttp({
+      logger,
+      serializers: {
+        req(req) {
+          return {
+            ...req,
+            url: typeof req.url === 'string' ? sanitizeRequestUrl(req.url) : req.url
+          };
+        }
+      }
+    })
+  );
   app.use(
     express.json({
       limit: '1mb',
