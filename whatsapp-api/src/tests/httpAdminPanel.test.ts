@@ -6,9 +6,9 @@ applyTestEnv();
 
 const { prepararBaseEnMemoria } = await import('./helpers/baseEnMemoria.js');
 const { iniciarServidorDePruebas } = await import('./helpers/servidorHttp.js');
-const { insertMessage, upsertContact, upsertConversation } = await import('../repository.js');
+const { upsertContact, upsertConversation } = await import('../repository.js');
 
-await prepararBaseEnMemoria();
+const base = await prepararBaseEnMemoria();
 
 let baseUrl = '';
 let cerrar: () => Promise<void> = async () => {};
@@ -59,19 +59,19 @@ test('abre el panel con sesión firmada', async () => {
   assert.match(await response.text(), /CityCred WhatsApp/);
 });
 
-test('lista conversaciones y permite pausar el bot', async () => {
+test('lista conversaciones vacías con sesión válida', async () => {
+  const cookie = await login();
+  const response = await fetch(`${baseUrl}/admin/api/conversations`, {
+    headers: { cookie }
+  });
+  assert.equal(response.status, 200);
+  assert.deepEqual(await response.json(), { conversations: [] });
+});
+
+test('permite pausar y reactivar el bot por conversación', async () => {
   const waId = '5492920123456';
   const contact = await upsertContact(waId, 'Cliente Panel');
-  const conversation = await upsertConversation(contact.id);
-  await insertMessage({
-    wamid: 'wamid-panel-1',
-    conversationId: conversation.id,
-    direction: 'INBOUND',
-    type: 'text',
-    text: 'Hola desde la prueba',
-    status: 'RECEIVED',
-    raw: { prueba: true }
-  });
+  await upsertConversation(contact.id);
 
   const cookie = await login();
   const pauseResponse = await fetch(`${baseUrl}/admin/api/conversations/${waId}/pause`, {
@@ -83,14 +83,20 @@ test('lista conversaciones y permite pausar el bot', async () => {
   const pauseData = await pauseResponse.json() as { botPausedUntil: string | null };
   assert.ok(pauseData.botPausedUntil);
 
-  const listResponse = await fetch(`${baseUrl}/admin/api/conversations`, {
-    headers: { cookie }
+  const paused = await base.consultar(
+    `SELECT bot_paused_until FROM conversations c
+     JOIN contacts ct ON ct.id = c.contact_id
+     WHERE ct.wa_id = $1`,
+    [waId]
+  );
+  assert.ok(paused.rows[0]?.bot_paused_until);
+
+  const resumeResponse = await fetch(`${baseUrl}/admin/api/conversations/${waId}/pause`, {
+    method: 'POST',
+    headers: { cookie, 'content-type': 'application/json' },
+    body: JSON.stringify({ minutes: 0 })
   });
-  assert.equal(listResponse.status, 200);
-  const listData = await listResponse.json() as {
-    conversations: Array<{ waId: string; botPausedUntil: string | null }>;
-  };
-  const item = listData.conversations.find((conversationItem) => conversationItem.waId === waId);
-  assert.ok(item);
-  assert.ok(item.botPausedUntil);
+  assert.equal(resumeResponse.status, 200);
+  const resumeData = await resumeResponse.json() as { botPausedUntil: string | null };
+  assert.equal(resumeData.botPausedUntil, null);
 });
