@@ -253,14 +253,14 @@ export async function listConversations(limit: number): Promise<ConversationSumm
             ct.profile_name,
             c.last_message_at,
             c.bot_paused_until,
-            (
-              SELECT m.text FROM messages m
-              WHERE m.conversation_id = c.id
-              ORDER BY m.created_at DESC
-              LIMIT 1
-            ) AS last_message_text
+            m.text AS last_message_text
      FROM conversations c
      JOIN contacts ct ON ct.id = c.contact_id
+     LEFT JOIN messages m ON m.conversation_id = c.id
+     LEFT JOIN messages newer
+       ON newer.conversation_id = c.id
+      AND newer.created_at > m.created_at
+     WHERE newer.id IS NULL
      ORDER BY c.last_message_at DESC
      LIMIT $1`,
     [limit]
