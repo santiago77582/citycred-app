@@ -1,6 +1,10 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { sanitizeRequestUrl } from '../utils/logger.js';
+import { applyTestEnv } from './helpers/entornoPruebas.js';
+
+applyTestEnv();
+
+const { sanitizeRequestUrl } = await import('../utils/logger.js');
 
 test('oculta hub.verify_token sin eliminar los demás parámetros', () => {
   const secreto = 'verify-token-super-secreto';
