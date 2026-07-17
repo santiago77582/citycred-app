@@ -6,6 +6,11 @@ const optionalSecret = z.preprocess(
   z.string().min(1).optional()
 );
 
+const optionalAdminPassword = z.preprocess(
+  (value) => (typeof value === 'string' && value.trim() === '' ? undefined : value),
+  z.string().min(12, 'ADMIN_PASSWORD debe tener al menos 12 caracteres').optional()
+);
+
 const schema = z.object({
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
   PORT: z.coerce.number().int().positive().default(3000),
@@ -14,6 +19,7 @@ const schema = z.object({
     z.url().optional()
   ),
   API_KEY: z.string().min(16, 'API_KEY debe tener al menos 16 caracteres (recomendado: 32 o más)'),
+  ADMIN_PASSWORD: optionalAdminPassword,
   LOG_LEVEL: z
     .enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent'])
     .default('info'),
@@ -47,6 +53,10 @@ if (!parsed.success) {
 }
 
 export const config = parsed.data;
+
+export function adminPassword(): string {
+  return config.ADMIN_PASSWORD ?? config.API_KEY;
+}
 
 export function isMetaSendingConfigured(): boolean {
   return Boolean(

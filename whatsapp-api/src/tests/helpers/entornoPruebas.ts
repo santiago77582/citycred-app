@@ -7,6 +7,7 @@
  * `await import(...)` después de llamar a esta función.
  */
 export const TEST_API_KEY = 'clave-de-api-solo-para-pruebas-1234567890';
+export const TEST_ADMIN_PASSWORD = 'clave-admin-solo-pruebas-1234567890';
 export const TEST_META_APP_SECRET = 'secreto-de-app-meta-solo-pruebas';
 export const TEST_VERIFY_TOKEN = 'token-de-verificacion-solo-pruebas';
 
@@ -15,6 +16,7 @@ export function applyTestEnv(overrides: Record<string, string | undefined> = {})
     NODE_ENV: 'test',
     LOG_LEVEL: 'silent',
     API_KEY: TEST_API_KEY,
+    ADMIN_PASSWORD: TEST_ADMIN_PASSWORD,
     // La URL no se usa: el pool real se reemplaza por pg-mem en memoria.
     DATABASE_URL: 'postgresql://pruebas:pruebas@127.0.0.1:5432/pruebas_en_memoria',
     DATABASE_SSL: 'false',

@@ -5,6 +5,7 @@ import helmet from 'helmet';
 import { pinoHttp } from 'pino-http';
 import { requireApiKey } from './middleware/apiKey.js';
 import { errorHandler } from './middleware/errorHandler.js';
+import { adminRouter } from './routes/admin.js';
 import { conversationsRouter } from './routes/conversations.js';
 import { healthRouter } from './routes/health.js';
 import { messagesRouter } from './routes/messages.js';
@@ -32,6 +33,7 @@ export function createApp(): express.Express {
       }
     })
   );
+  app.use(express.urlencoded({ extended: false, limit: '16kb' }));
   app.use(
     express.json({
       limit: '1mb',
@@ -44,6 +46,7 @@ export function createApp(): express.Express {
 
   app.use(healthRouter);
   app.use('/webhooks', webhooksRouter);
+  app.use('/admin', adminRouter);
 
   const apiLimiter = rateLimit({
     windowMs: 60_000,
