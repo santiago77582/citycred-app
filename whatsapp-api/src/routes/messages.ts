@@ -35,6 +35,18 @@ type PersistedOutbound = {
   status: Extract<Status, 'UNKNOWN' | 'PENDING' | 'FAILED'>;
 };
 
+export type TextSendOutcome = {
+  statusCode: 201 | 202;
+  payload: {
+    messageId: string | null;
+    wamid: string | null;
+    to: string;
+    status: Extract<Status, 'UNKNOWN' | 'PENDING'>;
+    retrySafe?: false;
+    warning?: string;
+  };
+};
+
 async function persistOutbound(params: {
   to: string;
   type: string;
@@ -81,49 +93,64 @@ function unknownResponse(persisted: PersistedOutbound, extra: Record<string, unk
     ...extra,
     messageId: persisted.messageId,
     wamid: null,
-    status: 'UNKNOWN',
-    retrySafe: false,
+    status: 'UNKNOWN' as const,
+    retrySafe: false as const,
     warning:
       'No se pudo confirmar si Meta aceptó el envío. No lo reintentes automáticamente porque podría duplicarse.'
   };
 }
 
-messagesRouter.post('/text', async (req, res) => {
-  const { to, body, previewUrl } = textSchema.parse(req.body);
-  const destino = normalizePhone(to);
-  const solicitud = { to: destino, type: 'text', body, previewUrl };
+export async function sendTextAndPersist(input: {
+  to: string;
+  body: string;
+  previewUrl?: boolean;
+}): Promise<TextSendOutcome> {
+  const destino = normalizePhone(input.to);
+  const previewUrl = input.previewUrl ?? false;
+  const solicitud = { to: destino, type: 'text', body: input.body, previewUrl };
 
   try {
-    const result = await sendText(destino, body, previewUrl);
+    const result = await sendText(destino, input.body, previewUrl);
     const persisted = await persistOutbound({
       to: destino,
       type: 'text',
-      text: body,
+      text: input.body,
       request: solicitud,
       result
     });
-    res.status(201).json({
-      messageId: persisted.messageId,
-      wamid: persisted.wamid,
-      to: destino,
-      status: persisted.status
-    });
+    return {
+      statusCode: 201,
+      payload: {
+        messageId: persisted.messageId,
+        wamid: persisted.wamid,
+        to: destino,
+        status: persisted.status === 'UNKNOWN' ? 'UNKNOWN' : 'PENDING'
+      }
+    };
   } catch (error) {
     if (shouldPersistMetaFailure(error)) {
       const persisted = await persistOutbound({
         to: destino,
         type: 'text',
-        text: body,
+        text: input.body,
         request: solicitud,
         error
       });
       if (persisted.status === 'UNKNOWN') {
-        res.status(202).json(unknownResponse(persisted, { to: destino }));
-        return;
+        return {
+          statusCode: 202,
+          payload: unknownResponse(persisted, { to: destino }) as TextSendOutcome['payload']
+        };
       }
     }
     throw error;
   }
+}
+
+messagesRouter.post('/text', async (req, res) => {
+  const input = textSchema.parse(req.body);
+  const outcome = await sendTextAndPersist(input);
+  res.status(outcome.statusCode).json(outcome.payload);
 });
 
 messagesRouter.post('/template', async (req, res) => {
