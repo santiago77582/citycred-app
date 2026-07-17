@@ -4,9 +4,13 @@ import { pool } from './db.js';
 import { logger } from './utils/logger.js';
 
 const app = createApp();
+const host = '0.0.0.0';
 
-const server = app.listen(config.PORT, () => {
-  logger.info({ puerto: config.PORT, entorno: config.NODE_ENV }, 'API de WhatsApp CityCred escuchando');
+const server = app.listen(config.PORT, host, () => {
+  logger.info(
+    { host, puerto: config.PORT, entorno: config.NODE_ENV },
+    'API de WhatsApp CityCred escuchando'
+  );
 });
 
 let cerrando = false;
