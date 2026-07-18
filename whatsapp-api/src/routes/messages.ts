@@ -10,6 +10,7 @@ import {
 import { markAsRead, sendTemplate, sendText, type SendResult } from '../services/meta.js';
 import { getApprovedWhatsappTemplateByNameLanguage } from '../templateRepository.js';
 import { normalizePhone } from '../utils/phone.js';
+import { advancedMessagesRouter } from './advancedMessages.js';
 
 export const messagesRouter = Router();
 
@@ -230,6 +231,8 @@ export async function sendTemplateAndPersist(input: {
     throw error;
   }
 }
+
+messagesRouter.use(advancedMessagesRouter);
 
 messagesRouter.post('/text', async (req, res) => {
   const input = textSchema.parse(req.body);
