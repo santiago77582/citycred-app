@@ -5,11 +5,7 @@ const MAX_ANALYTICS_CONTACTS = 100_000;
 const MAX_ANALYTICS_CONVERSATIONS = 100_000;
 
 export type OperationalDashboard = {
-  period: {
-    days: number;
-    from: string;
-    to: string;
-  };
+  period: { days: number; from: string; to: string };
   contacts: {
     total: number;
     consentGranted: number;
@@ -44,22 +40,9 @@ export type OperationalDashboard = {
     averageMinutes: number | null;
     medianMinutes: number | null;
   };
-  daily: Array<{
-    date: string;
-    inbound: number;
-    outbound: number;
-    failed: number;
-  }>;
-  campaigns: {
-    total: number;
-    drafts: number;
-    previewed: number;
-    cancelled: number;
-  };
-  alerts: {
-    open: number;
-    criticalOpen: number;
-  };
+  daily: Array<{ date: string; inbound: number; outbound: number; failed: number }>;
+  campaigns: { total: number; drafts: number; previewed: number; cancelled: number };
+  alerts: { open: number; criticalOpen: number };
   limits: {
     messagesTruncated: boolean;
     contactsTruncated: boolean;
@@ -73,13 +56,11 @@ type ContactRow = {
   consent_status: string;
   opt_out_at: string | null;
 };
-
 type ConversationRow = {
   assigned_user_id: string | null;
   bot_paused_until: string | null;
   last_message_at: string;
 };
-
 type MessageRow = {
   conversation_id: string;
   direction: 'INBOUND' | 'OUTBOUND';
@@ -87,9 +68,8 @@ type MessageRow = {
   type: string;
   created_at: string;
 };
-
 type StatusRow = { status: string };
-type AlertRow = { severity: string; status: string };
+type AlertRow = { severity: string };
 
 function increment(target: Record<string, number>, key: string): void {
   target[key] = (target[key] ?? 0) + 1;
@@ -212,9 +192,9 @@ export async function getOperationalDashboard(days: number): Promise<Operational
       ),
       pool.query<StatusRow>(`SELECT status FROM campaigns`),
       pool.query<AlertRow>(
-        `SELECT severity,
-                CASE WHEN acknowledged_at IS NULL THEN 'OPEN' ELSE 'ACKNOWLEDGED' END AS status
-         FROM system_alerts`
+        `SELECT severity
+         FROM system_alerts
+         WHERE resolved_at IS NULL`
       )
     ]);
 
@@ -276,15 +256,7 @@ export async function getOperationalDashboard(days: number): Promise<Operational
 
   const campaignCounts: Record<string, number> = {};
   for (const campaign of campaignsResult.rows) increment(campaignCounts, campaign.status);
-
-  let openAlerts = 0;
-  let criticalOpen = 0;
-  for (const alert of alertsResult.rows) {
-    if (alert.status === 'OPEN') {
-      openAlerts += 1;
-      if (alert.severity === 'CRITICAL') criticalOpen += 1;
-    }
-  }
+  const criticalOpen = alertsResult.rows.filter((alert) => alert.severity === 'CRITICAL').length;
 
   return {
     period: { days, from: from.toISOString(), to: to.toISOString() },
@@ -324,7 +296,7 @@ export async function getOperationalDashboard(days: number): Promise<Operational
       previewed: campaignCounts.PREVIEWED ?? 0,
       cancelled: campaignCounts.CANCELLED ?? 0
     },
-    alerts: { open: openAlerts, criticalOpen },
+    alerts: { open: alertsResult.rows.length, criticalOpen },
     limits: {
       messagesTruncated: messagesResult.rows.length >= MAX_ANALYTICS_MESSAGES,
       contactsTruncated: contactsResult.rows.length >= MAX_ANALYTICS_CONTACTS,
