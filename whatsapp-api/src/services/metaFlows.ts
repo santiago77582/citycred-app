@@ -145,7 +145,7 @@ export async function listMetaFlows(): Promise<MetaFlow[]> {
   const flows: MetaFlow[] = [];
   let after: string | null = null;
   for (let page = 0; page < MAX_FLOW_PAGES; page += 1) {
-    const result = await request<FlowPage>({
+    const result: FlowPage = await request<FlowPage>({
       path: `${config.WHATSAPP_BUSINESS_ACCOUNT_ID}/flows`,
       query: {
         fields: 'id,name,status,categories,validation_errors,json_version,data_api_version,health_status',
@@ -153,9 +153,9 @@ export async function listMetaFlows(): Promise<MetaFlow[]> {
         ...(after ? { after } : {})
       }
     });
-    const current = Array.isArray(result.data) ? result.data : [];
+    const current: MetaFlow[] = Array.isArray(result.data) ? result.data : [];
     flows.push(...current);
-    const next = result.paging?.cursors?.after;
+    const next: string | undefined = result.paging?.cursors?.after;
     if (!next || next === after || current.length === 0) return flows;
     after = next;
   }
