@@ -97,7 +97,7 @@ test('solo habilita contactos con consentimiento y sin baja', async () => {
   const campaign = await createCampaignDraft({
     name: 'Campaña Educación julio',
     templateId,
-    audienceFilter: { entities: ['Educación RN'] }
+    audienceFilter: { search: 'Educación RN' }
   });
   assert.equal(campaign.status, 'DRAFT');
 
@@ -135,7 +135,7 @@ test('modificar el borrador borra la vista previa anterior', async () => {
   const updated = await updateCampaignDraft(campaign.id, {
     name: 'Borrador corregido',
     templateId,
-    audienceFilter: { commercialStatuses: ['INTERESTED'] }
+    audienceFilter: { search: 'Cliente' }
   });
   assert.equal(updated.status, 'DRAFT');
   assert.equal(updated.lastPreviewedAt, null);
