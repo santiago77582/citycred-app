@@ -7,6 +7,8 @@ import { CRM_HTML } from '../admin/crmPage.js';
 import { CRM_CSS } from '../admin/crmStyle.js';
 import { MEDIA_COMPOSER_JS } from '../admin/mediaComposer.js';
 import { MEDIA_COMPOSER_CSS } from '../admin/mediaComposerStyle.js';
+import { TEMPLATE_COMPOSER_JS } from '../admin/templateComposer.js';
+import { TEMPLATE_UI_CSS } from '../admin/templateUiStyle.js';
 import { ADMIN_CSS, ADMIN_JS, DASHBOARD_HTML, LOGIN_HTML } from '../admin/ui.js';
 import {
   clearAdminSession,
@@ -53,10 +55,10 @@ const pauseSchema = z.object({
 });
 
 adminRouter.get('/assets/app.css', (_req, res) => {
-  res.type('text/css').send(`${ADMIN_CSS}\n${MEDIA_COMPOSER_CSS}`);
+  res.type('text/css').send(`${ADMIN_CSS}\n${MEDIA_COMPOSER_CSS}\n${TEMPLATE_UI_CSS}`);
 });
 adminRouter.get('/assets/crm.css', (_req, res) => {
-  res.type('text/css').send(CRM_CSS);
+  res.type('text/css').send(`${CRM_CSS}\n${TEMPLATE_UI_CSS}`);
 });
 
 adminRouter.get('/login', (_req, res) => {
@@ -87,7 +89,9 @@ adminRouter.use('/api/media', mediaRouter);
 adminRouter.use('/api/templates', templatesRouter);
 
 adminRouter.get('/assets/app.js', (_req, res) => {
-  res.type('application/javascript').send(`${ADMIN_JS}\n${MEDIA_COMPOSER_JS}`);
+  res
+    .type('application/javascript')
+    .send(`${ADMIN_JS}\n${MEDIA_COMPOSER_JS}\n${TEMPLATE_COMPOSER_JS}`);
 });
 adminRouter.get('/assets/crm.js', (_req, res) => {
   res.type('application/javascript').send(`${CRM_CORE_JS}\n${CRM_SETTINGS_JS}`);
