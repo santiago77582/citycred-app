@@ -1,10 +1,84 @@
 import { randomUUID } from 'node:crypto';
 import { pool } from '../db.js';
 import { AppError } from '../errors/AppError.js';
-import { hashPassword } from '../security/passwords.js';
+import { hashPassword, verifyPassword } from '../security/passwords.js';
 import { writeAuditEvent } from './auditRepository.js';
 
 export type UserRole = 'ADMIN' | 'SUPERVISOR' | 'ADVISOR';
+
+export type SessionUser = {
+  id: string;
+  email: string;
+  displayName: string;
+  role: UserRole;
+};
+
+type UserAuthRow = {
+  id: string;
+  email: string;
+  display_name: string;
+  password_hash: string;
+  role: UserRole;
+  active: boolean;
+};
+
+const DUMMY_PASSWORD_HASH = hashPassword('citycred-dummy-password-not-for-login');
+
+function mapSessionUser(row: Omit<UserAuthRow, 'password_hash' | 'active'>): SessionUser {
+  return {
+    id: row.id,
+    email: row.email,
+    displayName: row.display_name,
+    role: row.role
+  };
+}
+
+export async function authenticateUser(
+  email: string,
+  password: string
+): Promise<SessionUser | null> {
+  const result = await pool.query<UserAuthRow>(
+    `SELECT id, email, display_name, password_hash, role, active
+     FROM app_users
+     WHERE email = $1
+     LIMIT 1`,
+    [email.trim().toLowerCase()]
+  );
+  const row = result.rows[0];
+  const valid = row
+    ? verifyPassword(password, row.password_hash)
+    : verifyPassword(password, DUMMY_PASSWORD_HASH);
+  if (!row || !row.active || !valid) return null;
+
+  await pool.query(
+    `UPDATE app_users SET last_login_at = NOW(), updated_at = NOW() WHERE id = $1`,
+    [row.id]
+  );
+  await writeAuditEvent({
+    actorUserId: row.id,
+    action: 'USER_LOGGED_IN',
+    entityType: 'USER',
+    entityId: row.id,
+    afterData: { email: row.email, role: row.role }
+  });
+  return mapSessionUser(row);
+}
+
+export async function getActiveSessionUser(userId: string): Promise<SessionUser | null> {
+  const result = await pool.query<{
+    id: string;
+    email: string;
+    display_name: string;
+    role: UserRole;
+  }>(
+    `SELECT id, email, display_name, role
+     FROM app_users
+     WHERE id = $1 AND active = TRUE`,
+    [userId]
+  );
+  const row = result.rows[0];
+  return row ? mapSessionUser(row) : null;
+}
 
 export async function listUsers() {
   const result = await pool.query(
