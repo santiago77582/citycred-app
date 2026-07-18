@@ -47,6 +47,10 @@ input:focus, select:focus, textarea:focus { border-color: var(--brand); box-shad
 .form-grid { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 14px; }
 .form-grid label { display: grid; gap: 7px; color: var(--muted); font-size: 13px; font-weight: 750; }
 .form-grid .wide { grid-column: 1 / -1; }
+.field-title { color: var(--muted); font-size: 13px; font-weight: 750; margin-bottom: 8px; }
+.label-options { display: flex; flex-wrap: wrap; gap: 8px; }
+.label-option { display: inline-flex !important; grid-auto-flow: column; align-items: center; width: auto; gap: 7px !important; border: 1px solid var(--border); border-radius: 999px; padding: 7px 10px; color: var(--text) !important; background: #fff; }
+.label-option input { width: auto; margin: 0; accent-color: var(--brand); }
 .actions { display: flex; justify-content: flex-end; margin-top: 18px; }
 .inline-form { grid-template-columns: repeat(4,minmax(140px,1fr)) auto; background: #fff; border: 1px solid var(--border); border-radius: 16px; padding: 16px; }
 .stack-form { padding: 18px; margin-bottom: 16px; }
@@ -56,7 +60,7 @@ input:focus, select:focus, textarea:focus { border-color: var(--brand); box-shad
 .card-title { font-weight: 850; }
 .card-meta { margin-top: 6px; color: var(--muted); font-size: 13px; line-height: 1.45; }
 .label-chip { display: inline-flex; align-items: center; gap: 7px; }
-.label-dot { width: 12px; height: 12px; border-radius: 50%; background: var(--brand); }
+.label-dot { width: 12px; height: 12px; border-radius: 50%; background: var(--brand); flex: 0 0 auto; }
 .toast { position: fixed; right: 22px; bottom: 22px; padding: 12px 16px; border-radius: 12px; background: #1d2939; color: #fff; box-shadow: 0 12px 30px rgba(16,24,40,.2); }
 .toast.error { background: var(--danger); }
 .hidden { display: none !important; }
