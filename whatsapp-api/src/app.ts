@@ -17,6 +17,7 @@ import { flowsRouter } from './routes/flows.js';
 import { healthRouter } from './routes/health.js';
 import { mediaRouter } from './routes/media.js';
 import { messagesRouter } from './routes/messages.js';
+import { metaAnalyticsRouter } from './routes/metaAnalytics.js';
 import { operationsRouter } from './routes/operations.js';
 import { templatesRouter } from './routes/templates.js';
 import { webhooksRouter } from './routes/webhooks.js';
@@ -77,6 +78,7 @@ export function createApp(): express.Express {
   app.use('/api/v1/account', accountRouter);
   app.use('/api/v1/commerce', commerceRouter);
   app.use('/api/v1/flows', flowsRouter);
+  app.use('/api/v1/meta-analytics', metaAnalyticsRouter);
 
   app.use((_req, res) => {
     res.status(404).json({ error: 'Ruta no encontrada.' });
