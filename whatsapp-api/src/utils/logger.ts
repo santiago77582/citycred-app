@@ -37,8 +37,14 @@ export const logger = pino({
     paths: [
       'req.headers.authorization',
       'req.headers.x-api-key',
+      'req.headers.cookie',
+      'req.headers.x-hub-signature-256',
+      'res.headers.set-cookie',
       '*.access_token',
-      '*.token'
+      '*.token',
+      '*.password',
+      '*.apiKey',
+      '*.appSecret'
     ],
     censor: '[OCULTO]'
   }
