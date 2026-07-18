@@ -1,7 +1,13 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import { CRM_TEMPLATES_JS } from '../admin/crmClientTemplates.js';
 import { TEMPLATE_COMPOSER_JS } from '../admin/templateComposer.js';
 import { TEMPLATE_UI_CSS } from '../admin/templateUiStyle.js';
+
+test('los clientes web de plantillas tienen JavaScript válido', () => {
+  assert.doesNotThrow(() => new Function(CRM_TEMPLATES_JS));
+  assert.doesNotThrow(() => new Function(TEMPLATE_COMPOSER_JS));
+});
 
 test('el selector consulta solo plantillas aprobadas', () => {
   assert.match(TEMPLATE_COMPOSER_JS, /\?status=APPROVED&limit=500/);
