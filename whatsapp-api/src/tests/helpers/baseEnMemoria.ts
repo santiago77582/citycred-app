@@ -37,7 +37,22 @@ export async function prepararBaseEnMemoria(): Promise<BaseDePruebas> {
     return (poolEnMemoria as unknown as { query: (...a: unknown[]) => Promise<unknown> }).query(...args);
   };
 
+  const connectInterceptado = async (): Promise<unknown> => {
+    const client = await poolEnMemoria.connect();
+    const originalQuery = client.query.bind(client);
+    client.query = (async (...args: unknown[]) => {
+      const primero = args[0];
+      const sql = typeof primero === 'string'
+        ? primero
+        : String((primero as { text?: unknown } | undefined)?.text ?? '');
+      if (falloSimulado?.(sql)) throw new Error('Fallo de base de datos simulado por la prueba');
+      return originalQuery(...args as Parameters<typeof originalQuery>);
+    }) as typeof client.query;
+    return client;
+  };
+
   (pool as unknown as { query: (...a: unknown[]) => Promise<unknown> }).query = queryInterceptada;
+  (pool as unknown as { connect: () => Promise<unknown> }).connect = connectInterceptado;
 
   return {
     consultar: (sql, params) =>
