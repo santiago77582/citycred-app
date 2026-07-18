@@ -3,6 +3,7 @@ import express from 'express';
 import rateLimit from 'express-rate-limit';
 import helmet from 'helmet';
 import { pinoHttp } from 'pino-http';
+import { config } from './config.js';
 import { requireApiKey } from './middleware/apiKey.js';
 import { errorHandler } from './middleware/errorHandler.js';
 import { adminRouter } from './routes/admin.js';
@@ -20,10 +21,16 @@ import { logger, sanitizeRequestUrl } from './utils/logger.js';
 
 export function createApp(): express.Express {
   const app = express();
+  const allowedOrigins = new Set(config.CORS_ORIGINS);
+
   app.set('trust proxy', 1);
   app.disable('x-powered-by');
   app.use(helmet());
-  app.use(cors());
+  app.use(cors({
+    origin(origin, callback) {
+      callback(null, origin === undefined || allowedOrigins.has(origin));
+    }
+  }));
   app.use(pinoHttp({
     logger,
     serializers: {
