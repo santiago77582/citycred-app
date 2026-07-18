@@ -10,6 +10,7 @@ import {
   listContactLabels,
   setContactLabel
 } from '../crm/catalogRepository.js';
+import { requirePanelRole } from '../middleware/adminSession.js';
 import { normalizePhone } from '../utils/phone.js';
 
 export const crmContactsRouter = Router();
@@ -59,21 +60,29 @@ crmContactsRouter.get('/:waId', async (req, res) => {
 crmContactsRouter.patch('/:waId', async (req, res) => {
   const waId = normalizePhone(String(req.params.waId));
   const patch = patchSchema.parse(req.body);
-  const contact = await updateCrmContact(waId, patch, undefined);
+  const contact = await updateCrmContact(
+    waId,
+    patch,
+    req.adminUser?.userId ?? undefined
+  );
   res.json({ contact });
 });
 
-crmContactsRouter.put('/:waId/assignment', async (req, res) => {
-  const waId = normalizePhone(String(req.params.waId));
-  const input = assignmentSchema.parse(req.body);
-  const conversation = await assignConversation({
-    waId,
-    userId: input.userId,
-    source: input.source,
-    actorUserId: undefined
-  });
-  res.json({ conversation });
-});
+crmContactsRouter.put(
+  '/:waId/assignment',
+  requirePanelRole('ADMIN', 'SUPERVISOR'),
+  async (req, res) => {
+    const waId = normalizePhone(String(req.params.waId));
+    const input = assignmentSchema.parse(req.body);
+    const conversation = await assignConversation({
+      waId,
+      userId: input.userId,
+      source: input.source,
+      actorUserId: req.adminUser?.userId ?? undefined
+    });
+    res.json({ conversation });
+  }
+);
 
 crmContactsRouter.get('/:waId/labels', async (req, res) => {
   const waId = normalizePhone(String(req.params.waId));
@@ -83,13 +92,23 @@ crmContactsRouter.get('/:waId/labels', async (req, res) => {
 crmContactsRouter.put('/:waId/labels/:labelId', async (req, res) => {
   const waId = normalizePhone(String(req.params.waId));
   const { labelId } = labelSchema.parse(req.params);
-  await setContactLabel({ waId, labelId, assigned: true, actorUserId: undefined });
+  await setContactLabel({
+    waId,
+    labelId,
+    assigned: true,
+    actorUserId: req.adminUser?.userId ?? undefined
+  });
   res.status(204).end();
 });
 
 crmContactsRouter.delete('/:waId/labels/:labelId', async (req, res) => {
   const waId = normalizePhone(String(req.params.waId));
   const { labelId } = labelSchema.parse(req.params);
-  await setContactLabel({ waId, labelId, assigned: false, actorUserId: undefined });
+  await setContactLabel({
+    waId,
+    labelId,
+    assigned: false,
+    actorUserId: req.adminUser?.userId ?? undefined
+  });
   res.status(204).end();
 });
