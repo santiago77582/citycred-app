@@ -11,6 +11,14 @@ const optionalAdminPassword = z.preprocess(
   z.string().min(12, 'ADMIN_PASSWORD debe tener al menos 12 caracteres').optional()
 );
 
+const corsOrigins = z.preprocess(
+  (value) => {
+    if (typeof value !== 'string' || value.trim() === '') return [];
+    return value.split(',').map((item) => item.trim()).filter(Boolean);
+  },
+  z.array(z.url())
+);
+
 const schema = z.object({
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
   PORT: z.coerce.number().int().positive().default(3000),
@@ -18,6 +26,7 @@ const schema = z.object({
     (value) => (typeof value === 'string' && value.trim() === '' ? undefined : value),
     z.url().optional()
   ),
+  CORS_ORIGINS: corsOrigins,
   API_KEY: z.string().min(16, 'API_KEY debe tener al menos 16 caracteres (recomendado: 32 o más)'),
   ADMIN_PASSWORD: optionalAdminPassword,
   LOG_LEVEL: z
