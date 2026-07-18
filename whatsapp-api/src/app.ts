@@ -3,6 +3,7 @@ import express from 'express';
 import rateLimit from 'express-rate-limit';
 import helmet from 'helmet';
 import { pinoHttp } from 'pino-http';
+import { config } from './config.js';
 import { requireApiKey } from './middleware/apiKey.js';
 import { errorHandler } from './middleware/errorHandler.js';
 import { adminRouter } from './routes/admin.js';
@@ -13,16 +14,23 @@ import { crmRouter } from './routes/crm.js';
 import { healthRouter } from './routes/health.js';
 import { mediaRouter } from './routes/media.js';
 import { messagesRouter } from './routes/messages.js';
+import { operationsRouter } from './routes/operations.js';
 import { templatesRouter } from './routes/templates.js';
 import { webhooksRouter } from './routes/webhooks.js';
 import { logger, sanitizeRequestUrl } from './utils/logger.js';
 
 export function createApp(): express.Express {
   const app = express();
+  const allowedOrigins = new Set(config.CORS_ORIGINS);
+
   app.set('trust proxy', 1);
   app.disable('x-powered-by');
   app.use(helmet());
-  app.use(cors());
+  app.use(cors({
+    origin(origin, callback) {
+      callback(null, origin === undefined || allowedOrigins.has(origin));
+    }
+  }));
   app.use(pinoHttp({
     logger,
     serializers: {
@@ -62,6 +70,7 @@ export function createApp(): express.Express {
   app.use('/api/v1/templates', templatesRouter);
   app.use('/api/v1/campaigns', campaignsRouter);
   app.use('/api/v1/analytics', analyticsRouter);
+  app.use('/api/v1/operations', operationsRouter);
 
   app.use((_req, res) => {
     res.status(404).json({ error: 'Ruta no encontrada.' });

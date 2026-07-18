@@ -1,77 +1,65 @@
 # WhatsApp CityCred API
 
-Backend para conectar CityCred con la **WhatsApp Cloud API oficial de Meta**. No usa WhatsApp Web, códigos QR, Selenium ni librerías no oficiales.
+Backend propio de CityCred conectado a la **WhatsApp Cloud API oficial de Meta**. No usa WhatsApp Web, códigos QR, Selenium ni librerías no oficiales.
 
-## Estado actual
+## Estado real
 
-El código está terminado y validado localmente:
+El repositorio contiene el backend, el panel de conversaciones, CRM, plantillas, borradores de campañas, estadísticas y monitoreo interno. Cada cambio se valida con pruebas, TypeScript, compilación y auditoría de dependencias.
 
-- compila con TypeScript;
-- incluye pruebas automáticas para teléfonos argentinos;
-- no presenta vulnerabilidades conocidas en `npm audit`;
-- puede publicarse aunque todavía no se hayan cargado las credenciales de Meta;
-- inicializa automáticamente las tablas de PostgreSQL al arrancar en producción.
+Esto no significa que el backend nuevo esté atendiendo actualmente el número real. El webhook de Meta y el sistema anterior permanecen sin cambios hasta realizar una migración controlada y autorizada.
 
-La integración con el número real queda activa únicamente después de cargar las credenciales de la cuenta de Meta y configurar el webhook público.
+Las campañas solo admiten **borradores y vista previa**. No existe una ruta que ejecute envíos masivos.
+
+El módulo Equipo guarda usuarios, roles y contraseñas cifradas para una etapa posterior. El ingreso actual al panel sigue usando una clave administrativa compartida; todavía no hay sesiones individuales por asesor.
 
 ## Funciones incluidas
 
-- Enviar mensajes de texto dentro de la ventana de atención permitida por WhatsApp.
-- Enviar plantillas aprobadas por Meta.
-- Marcar mensajes como leídos.
-- Recibir mensajes mediante webhook.
-- Recibir estados `sent`, `delivered`, `read` y `failed`.
-- Guardar contactos, conversaciones, mensajes y eventos en PostgreSQL.
-- Normalizar números móviles argentinos al formato `549...`.
-- Evitar mensajes entrantes duplicados mediante el identificador de WhatsApp.
-- Registrar envíos fallidos y la respuesta de Meta.
-- Proteger los endpoints privados mediante `x-api-key`.
-- Verificar la firma `X-Hub-Signature-256` de Meta.
-- Mostrar en `/health` qué partes de Meta todavía faltan configurar, sin revelar secretos.
+- Recibir mensajes y estados por webhook firmado de Meta.
+- Enviar texto sin reintentos ambiguos que puedan duplicar mensajes.
+- Sincronizar plantillas desde la WABA y enviar únicamente plantillas aprobadas.
+- Enviar imágenes, audio, video y documentos con validación de formato y tamaño.
+- Guardar contactos, conversaciones, mensajes, archivos, plantillas y eventos en PostgreSQL.
+- Evitar duplicados mediante el identificador de WhatsApp.
+- Mantener estados salientes monotónicos; `FAILED` es terminal.
+- Pausar el bot al responder manualmente.
+- Administrar ficha comercial, consentimiento, etiquetas y respuestas rápidas.
+- Preparar campañas sin ejecutarlas y excluir contactos no habilitados.
+- Consultar estadísticas operativas de solo lectura.
+- Ejecutar verificaciones internas de mensajes, webhooks, campañas y respaldos.
+- Ocultar credenciales en eventos, mensajes y registros HTTP.
 
-## Estructura
+## Requisitos locales
 
-```text
-whatsapp-api/
-├── src/
-│   ├── middleware/
-│   ├── routes/
-│   ├── services/
-│   ├── tests/
-│   └── utils/
-├── sql/001_init.sql
-├── Dockerfile
-├── docker-compose.yml
-├── render.yaml
-├── openapi.yaml
-└── .env.example
-```
-
-## Instalación local
-
-Requisitos: Node.js 20 o superior, npm y PostgreSQL. Docker es opcional.
+- Node.js 24 o superior.
+- npm.
+- PostgreSQL.
+- Docker opcional.
 
 ```bash
 cp .env.example .env
-npm install
+npm ci
 docker compose up -d
 npm run db:init
 npm run dev
 ```
 
-La API queda disponible en:
+La API queda disponible en `http://localhost:3000`.
 
-```text
-http://localhost:3000
-```
-
-## Variables obligatorias del servidor
+## Variables obligatorias
 
 ```env
 API_KEY=clave-privada-de-32-caracteres-o-mas
 DATABASE_URL=postgresql://usuario:clave@servidor:5432/base
 DATABASE_SSL=false
 ```
+
+Para separar el acceso visual de la clave técnica:
+
+```env
+ADMIN_PASSWORD=otra-clave-administrativa-larga
+```
+
+Mientras `ADMIN_PASSWORD` esté vacío, el panel utiliza `API_KEY` como compatibilidad temporal.
 
 ## Variables de Meta
 
@@ -84,110 +72,71 @@ WHATSAPP_BUSINESS_ACCOUNT_ID=
 WHATSAPP_VERIFY_TOKEN=
 ```
 
-Estas variables pueden dejarse vacías para publicar y verificar la API. Los endpoints de envío devolverán `503` hasta que la conexión con Meta quede completa.
+Pueden dejarse vacías para publicar y comprobar `/health`. Los envíos y la sincronización devolverán `503` hasta completar la conexión.
 
-## Endpoints
+## Accesos principales
 
-### Estado de la API
+- `GET /health`: estado público, sin mostrar secretos.
+- `GET|POST /webhooks/whatsapp`: verificación y eventos firmados de Meta.
+- `GET /admin`: panel visual protegido por sesión.
+- `GET /admin/crm`: CRM, plantillas, campañas y estadísticas.
+- `/api/v1/**`: API técnica protegida mediante `x-api-key`.
 
-```http
-GET /health
-```
+### Mensajes
 
-No necesita API key. Informa si la base funciona y qué credenciales de Meta están configuradas.
+- `POST /api/v1/messages/text`
+- `POST /api/v1/messages/template`
+- `POST /api/v1/messages/mark-read`
 
-### Enviar texto
+La ruta de plantillas valida el nombre y el idioma contra la lista sincronizada. Una plantilla ausente, pendiente, rechazada o desactualizada no llega a Meta.
 
-```http
-POST /api/v1/messages/text
-Content-Type: application/json
-x-api-key: TU_API_KEY
-```
+### Conversaciones y CRM
 
-```json
-{
-  "to": "02920 15 123456",
-  "body": "Hola, te escribimos de CityCred.",
-  "previewUrl": false
-}
-```
+- `GET /api/v1/conversations`
+- `GET /api/v1/conversations/{waId}/messages`
+- `/api/v1/crm/**`
 
-### Enviar plantilla
+### Multimedia y plantillas
 
-```http
-POST /api/v1/messages/template
-Content-Type: application/json
-x-api-key: TU_API_KEY
-```
+- `/api/v1/media/**`
+- `/api/v1/templates/**`
 
-```json
-{
-  "to": "5492920123456",
-  "templateName": "nombre_aprobado_en_meta",
-  "languageCode": "es_AR",
-  "components": []
-}
-```
+### Campañas
 
-### Marcar como leído
+- `/api/v1/campaigns/**`
 
-```http
-POST /api/v1/messages/mark-read
-Content-Type: application/json
-x-api-key: TU_API_KEY
-```
+Solo permite crear y editar borradores y generar vistas previas. `GET /api/v1/campaigns/capabilities` informa `executionEnabled: false`.
 
-```json
-{
-  "messageId": "wamid..."
-}
-```
+### Estadísticas y monitoreo
 
-### Listar conversaciones
+- `GET /api/v1/analytics/dashboard?days=30`
+- `GET /api/v1/operations/overview`
+- `POST /api/v1/operations/check`
+- `/api/v1/operations/alerts/**`
 
-```http
-GET /api/v1/conversations?limit=50
-x-api-key: TU_API_KEY
-```
+El monitor consulta únicamente la base local. No llama a Meta ni envía mensajes.
 
-### Historial de un contacto
-
-```http
-GET /api/v1/conversations/5492920123456/messages?limit=100
-x-api-key: TU_API_KEY
-```
-
-### Webhook de Meta
-
-```http
-GET /webhooks/whatsapp
-POST /webhooks/whatsapp
-```
-
-La dirección pública para Meta será:
-
-```text
-https://TU-DOMINIO/webhooks/whatsapp
-```
-
-## Comandos de comprobación
+## Comprobación completa
 
 ```bash
-npm run test
+npm test
 npm run typecheck
 npm run build
 npm audit --omit=dev
 ```
 
-## Reglas importantes de WhatsApp
+Las pruebas se ejecutan de forma serial porque cada archivo levanta una base PostgreSQL en memoria y reemplaza temporalmente la conexión global.
 
-- Fuera de la ventana de atención al cliente, se deben usar plantillas aprobadas.
-- Las campañas requieren consentimiento de los destinatarios.
-- Una respuesta HTTP exitosa confirma que Meta aceptó la solicitud; la entrega definitiva se actualiza posteriormente por webhook.
-- Los tokens y secretos nunca deben colocarse en el frontend ni subirse al repositorio.
+## Reglas operativas
 
-## Archivos de ayuda
+- Fuera de la ventana de atención se usan plantillas aprobadas.
+- No se envía una campaña sin consentimiento vigente.
+- Un resultado ambiguo de Meta se guarda como `UNKNOWN` y no se reintenta automáticamente.
+- Los secretos nunca deben copiarse al frontend, a capturas ni al repositorio.
+- Cambiar el webhook, el número real o activar costos requiere una autorización y un plan de reversión.
 
-- `CONFIGURACION_META.md`: conexión paso a paso con Meta.
-- `PUBLICACION.md`: publicación del servidor y PostgreSQL.
-- `openapi.yaml`: especificación técnica de la API.
+## Archivos de apoyo
+
+- `CONFIGURACION_META.md`: conexión con Meta.
+- `PUBLICACION.md`: servidor y PostgreSQL.
+- `openapi.yaml`: especificación resumida de la API técnica.

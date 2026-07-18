@@ -207,17 +207,15 @@ async function seedDashboardData(): Promise<void> {
     createdAt: oldDate
   });
 
-  await syncWhatsappTemplates([
-    {
-      metaTemplateId: 'analytics-template',
-      name: 'analytics_template',
-      languageCode: 'es_AR',
-      category: 'UTILITY',
-      status: 'APPROVED',
-      components: [],
-      rejectionReason: null
-    }
-  ]);
+  await syncWhatsappTemplates([{
+    metaTemplateId: 'analytics-template',
+    name: 'analytics_template',
+    languageCode: 'es_AR',
+    category: 'UTILITY',
+    status: 'APPROVED',
+    components: [],
+    rejectionReason: null
+  }]);
   const template = await base.consultar(
     `SELECT id FROM whatsapp_templates WHERE name = 'analytics_template'`
   );
@@ -301,7 +299,7 @@ test('calcula contactos, mensajes, tiempos, campañas y alertas', async () => {
     previewed: 1,
     cancelled: 1
   });
-  assert.equal(dashboard.alerts.open, 2);
+  assert.equal(dashboard.alerts.open, 3);
   assert.equal(dashboard.alerts.criticalOpen, 1);
   assert.deepEqual(dashboard.limits, {
     messagesTruncated: false,

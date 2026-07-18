@@ -26,37 +26,22 @@ test('recorre las páginas y normaliza plantillas sin duplicarlas', async () => 
 
     if (urls.length === 1) {
       return new Response(JSON.stringify({
-        data: [
-          {
-            id: 'tpl-1',
-            name: 'bienvenida',
-            language: 'es_AR',
-            status: 'APPROVED',
-            category: 'UTILITY',
-            components: [{ type: 'BODY', text: 'Hola {{1}}' }]
-          }
-        ],
+        data: [{
+          id: 'tpl-1', name: 'bienvenida', language: 'es_AR',
+          status: 'APPROVED', category: 'UTILITY',
+          components: [{ type: 'BODY', text: 'Hola {{1}}' }]
+        }],
         paging: { cursors: { after: 'cursor-segunda-pagina' } }
       }), { status: 200, headers: { 'content-type': 'application/json' } });
     }
 
     return new Response(JSON.stringify({
       data: [
+        { id: 'tpl-1-duplicada', name: 'bienvenida', language: 'es_AR', status: 'APPROVED' },
         {
-          id: 'tpl-1-duplicada',
-          name: 'bienvenida',
-          language: 'es_AR',
-          status: 'APPROVED'
-        },
-        {
-          id: 'tpl-2',
-          name: 'documentacion_pendiente',
-          language: 'es_AR',
-          status: 'PENDING',
-          category: 'UTILITY',
-          rejected_reason: ''
-        },
-        { id: null, name: 'invalida', language: 'es_AR', status: 'APPROVED' }
+          id: 'tpl-2', name: 'documentacion_pendiente', language: 'es_AR',
+          status: 'PENDING', category: 'UTILITY', rejected_reason: ''
+        }
       ]
     }), { status: 200, headers: { 'content-type': 'application/json' } });
   };
@@ -71,6 +56,25 @@ test('recorre las páginas y normaliza plantillas sin duplicarlas', async () => 
     assert.match(urls[0] ?? '', /987654321\/message_templates/);
     assert.match(urls[0] ?? '', /fields=/);
     assert.match(urls[1] ?? '', /after=cursor-segunda-pagina/);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test('cancela toda la sincronización si Meta devuelve un registro incompleto', async () => {
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async () => new Response(JSON.stringify({
+    data: [
+      { id: 'tpl-valida', name: 'valida', language: 'es_AR', status: 'APPROVED' },
+      { id: null, name: 'invalida', language: 'es_AR', status: 'APPROVED' }
+    ]
+  }), { status: 200, headers: { 'content-type': 'application/json' } });
+
+  try {
+    await assert.rejects(
+      fetchAllMetaTemplates(),
+      /plantilla incompleta/i
+    );
   } finally {
     globalThis.fetch = originalFetch;
   }

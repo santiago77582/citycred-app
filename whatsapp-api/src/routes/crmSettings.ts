@@ -10,13 +10,6 @@ import { createUser, listUsers, updateUser } from '../crm/teamRepository.js';
 
 export const crmSettingsRouter = Router();
 
-const actorSchema = z.string().uuid().optional();
-function actorUserId(req: { headers: Record<string, unknown> }): string | undefined {
-  const raw = req.headers['x-actor-user-id'];
-  const candidate = Array.isArray(raw) ? raw[0] : raw;
-  return actorSchema.parse(candidate);
-}
-
 const labelSchema = z.object({
   name: z.string().trim().min(1).max(60),
   description: z.string().trim().max(250).nullable().optional(),
@@ -51,7 +44,7 @@ crmSettingsRouter.get('/labels', async (_req, res) => {
 
 crmSettingsRouter.post('/labels', async (req, res) => {
   const input = labelSchema.parse(req.body);
-  const label = await createLabel({ ...input, actorUserId: actorUserId(req) });
+  const label = await createLabel({ ...input, actorUserId: undefined });
   res.status(201).json({ label });
 });
 
@@ -61,7 +54,7 @@ crmSettingsRouter.get('/quick-replies', async (_req, res) => {
 
 crmSettingsRouter.post('/quick-replies', async (req, res) => {
   const input = quickReplySchema.parse(req.body);
-  const quickReply = await createQuickReply({ ...input, actorUserId: actorUserId(req) });
+  const quickReply = await createQuickReply({ ...input, actorUserId: undefined });
   res.status(201).json({ quickReply });
 });
 
@@ -71,13 +64,13 @@ crmSettingsRouter.get('/users', async (_req, res) => {
 
 crmSettingsRouter.post('/users', async (req, res) => {
   const input = createUserSchema.parse(req.body);
-  const user = await createUser({ ...input, actorUserId: actorUserId(req) });
+  const user = await createUser({ ...input, actorUserId: undefined });
   res.status(201).json({ user });
 });
 
 crmSettingsRouter.patch('/users/:userId', async (req, res) => {
   const { userId } = userParamsSchema.parse(req.params);
   const input = updateUserSchema.parse(req.body);
-  const user = await updateUser({ userId, ...input, actorUserId: actorUserId(req) });
+  const user = await updateUser({ userId, ...input, actorUserId: undefined });
   res.json({ user });
 });

@@ -26,13 +26,6 @@ function outboundStatusRank(status: Status): number {
   return OUTBOUND_STATUS_RANK[status];
 }
 
-/**
- * Regla de transición para mensajes salientes.
- *
- * - FAILED es terminal: ningún estado posterior puede revivir el mensaje.
- * - Cualquier estado puede pasar a FAILED si Meta informa un rechazo definitivo.
- * - El resto solo avanza de forma monotónica.
- */
 export function canTransitionOutboundStatus(current: Status, next: Status): boolean {
   if (current === 'RECEIVED' || next === 'RECEIVED') return false;
   if (next === 'FAILED') return true;
@@ -83,10 +76,22 @@ export type MessageSummary = {
 
 function firstRow<T>(rows: T[]): T {
   const row = rows[0];
-  if (!row) {
-    throw new AppError('La base de datos no devolvió el registro esperado', 500);
-  }
+  if (!row) throw new AppError('La base de datos no devolvió el registro esperado', 500);
   return row;
+}
+
+async function advanceConversationLastMessage(
+  conversationId: string,
+  createdAt: string
+): Promise<void> {
+  await pool.query(
+    `UPDATE conversations
+     SET last_message_at = $2,
+         updated_at = NOW()
+     WHERE id = $1
+       AND last_message_at < $2`,
+    [conversationId, createdAt]
+  );
 }
 
 export async function upsertContact(waId: string, profileName?: string | null): Promise<ContactRow> {
@@ -107,8 +112,7 @@ export async function upsertConversation(contactId: string): Promise<Conversatio
     `INSERT INTO conversations (id, contact_id)
      VALUES ($1, $2)
      ON CONFLICT (contact_id) DO UPDATE SET
-       last_message_at = NOW(),
-       updated_at = NOW()
+       contact_id = EXCLUDED.contact_id
      RETURNING id, contact_id`,
     [randomUUID(), contactId]
   );
@@ -154,16 +158,15 @@ export async function insertMessage(params: {
   errorCode?: string | null;
   errorMessage?: string | null;
 }): Promise<string | null> {
-  const id = randomUUID();
-  const result = await pool.query<{ id: string }>(
+  const result = await pool.query<{ id: string; created_at: string }>(
     `INSERT INTO messages (
        id, wamid, conversation_id, direction, type, text, status, error_code, error_message, raw
      )
      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10::jsonb)
      ON CONFLICT (wamid) DO NOTHING
-     RETURNING id`,
+     RETURNING id, created_at`,
     [
-      id,
+      randomUUID(),
       params.wamid,
       params.conversationId,
       params.direction,
@@ -175,7 +178,27 @@ export async function insertMessage(params: {
       JSON.stringify(params.raw ?? null)
     ]
   );
-  return result.rows[0]?.id ?? null;
+  const inserted = result.rows[0];
+  if (inserted) {
+    await advanceConversationLastMessage(params.conversationId, inserted.created_at);
+    return inserted.id;
+  }
+
+  if (params.wamid) {
+    const existing = await pool.query<{
+      conversation_id: string;
+      created_at: string;
+    }>(
+      `SELECT conversation_id, created_at
+       FROM messages
+       WHERE wamid = $1
+       LIMIT 1`,
+      [params.wamid]
+    );
+    const row = existing.rows[0];
+    if (row) await advanceConversationLastMessage(row.conversation_id, row.created_at);
+  }
+  return null;
 }
 
 export async function updateMessageStatus(params: {
@@ -187,9 +210,6 @@ export async function updateMessageStatus(params: {
 }): Promise<boolean> {
   const currentRankSql = statusRankSql('status');
   const nextRankSql = statusRankSql('$2');
-
-  // Nunca se retrocede un estado. UNKNOWN puede avanzar si luego llega un webhook con wamid.
-  // FAILED siempre gana al entrar y queda terminal una vez almacenado.
   const result = await pool.query(
     `UPDATE messages
      SET status = $2,
@@ -259,9 +279,12 @@ export async function listConversations(limit: number): Promise<ConversationSumm
      LEFT JOIN messages m ON m.conversation_id = c.id
      LEFT JOIN messages newer
        ON newer.conversation_id = c.id
-      AND newer.created_at > m.created_at
+      AND (
+        newer.created_at > m.created_at
+        OR (newer.created_at = m.created_at AND newer.id > m.id)
+      )
      WHERE newer.id IS NULL
-     ORDER BY c.last_message_at DESC
+     ORDER BY c.last_message_at DESC, c.id ASC
      LIMIT $1`,
     [limit]
   );
@@ -294,7 +317,7 @@ export async function listMessagesByWaId(waId: string, limit: number): Promise<M
      JOIN conversations c ON c.id = m.conversation_id
      JOIN contacts ct ON ct.id = c.contact_id
      WHERE ct.wa_id = $1
-     ORDER BY m.created_at DESC
+     ORDER BY m.created_at DESC, m.id DESC
      LIMIT $2`,
     [waId, limit]
   );

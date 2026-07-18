@@ -49,6 +49,11 @@ function mapTemplate(row: TemplateDbRow): WhatsappTemplate {
   };
 }
 
+const templateColumns = `
+  id, meta_template_id, name, language_code, category, status,
+  components, rejection_reason, last_synced_at, created_at, updated_at
+`;
+
 export async function syncWhatsappTemplates(templates: SyncedTemplate[]): Promise<{
   synced: number;
   markedMissing: number;
@@ -130,8 +135,7 @@ export async function listWhatsappTemplates(params: {
   }
   values.push(params.limit);
   const result = await pool.query<TemplateDbRow>(
-    `SELECT id, meta_template_id, name, language_code, category, status,
-            components, rejection_reason, last_synced_at, created_at, updated_at
+    `SELECT ${templateColumns}
      FROM whatsapp_templates
      ${filters.length ? `WHERE ${filters.join(' AND ')}` : ''}
      ORDER BY
@@ -145,8 +149,7 @@ export async function listWhatsappTemplates(params: {
 
 export async function getWhatsappTemplateById(id: string): Promise<WhatsappTemplate> {
   const result = await pool.query<TemplateDbRow>(
-    `SELECT id, meta_template_id, name, language_code, category, status,
-            components, rejection_reason, last_synced_at, created_at, updated_at
+    `SELECT ${templateColumns}
      FROM whatsapp_templates
      WHERE id = $1`,
     [id]
@@ -154,4 +157,28 @@ export async function getWhatsappTemplateById(id: string): Promise<WhatsappTempl
   const row = result.rows[0];
   if (!row) throw new AppError('Plantilla no encontrada.', 404);
   return mapTemplate(row);
+}
+
+export async function getApprovedWhatsappTemplateByNameLanguage(
+  name: string,
+  languageCode: string
+): Promise<WhatsappTemplate> {
+  const result = await pool.query<TemplateDbRow>(
+    `SELECT ${templateColumns}
+     FROM whatsapp_templates
+     WHERE name = $1 AND language_code = $2`,
+    [name, languageCode]
+  );
+  const row = result.rows[0];
+  if (!row) {
+    throw new AppError('La plantilla no existe en la lista sincronizada con Meta.', 404);
+  }
+  const template = mapTemplate(row);
+  if (template.status !== 'APPROVED' || !template.metaTemplateId || !template.lastSyncedAt) {
+    throw new AppError(
+      `La plantilla no está aprobada y sincronizada. Estado: ${template.status}.`,
+      409
+    );
+  }
+  return template;
 }

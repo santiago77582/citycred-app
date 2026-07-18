@@ -8,6 +8,7 @@ import {
   type Status
 } from '../repository.js';
 import { markAsRead, sendTemplate, sendText, type SendResult } from '../services/meta.js';
+import { getApprovedWhatsappTemplateByNameLanguage } from '../templateRepository.js';
 import { normalizePhone } from '../utils/phone.js';
 
 export const messagesRouter = Router();
@@ -238,7 +239,16 @@ messagesRouter.post('/text', async (req, res) => {
 
 messagesRouter.post('/template', async (req, res) => {
   const input = templateSchema.parse(req.body);
-  const outcome = await sendTemplateAndPersist(input);
+  const template = await getApprovedWhatsappTemplateByNameLanguage(
+    input.templateName,
+    input.languageCode
+  );
+  const outcome = await sendTemplateAndPersist({
+    to: input.to,
+    templateName: template.name,
+    languageCode: template.languageCode,
+    components: input.components
+  });
   res.status(outcome.statusCode).json(outcome.payload);
 });
 
