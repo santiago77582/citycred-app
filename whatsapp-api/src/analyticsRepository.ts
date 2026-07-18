@@ -211,7 +211,11 @@ export async function getOperationalDashboard(days: number): Promise<Operational
         [from.toISOString(), MAX_ANALYTICS_MESSAGES]
       ),
       pool.query<StatusRow>(`SELECT status FROM campaigns`),
-      pool.query<AlertRow>(`SELECT severity, status FROM system_alerts`)
+      pool.query<AlertRow>(
+        `SELECT severity,
+                CASE WHEN acknowledged_at IS NULL THEN 'OPEN' ELSE 'ACKNOWLEDGED' END AS status
+         FROM system_alerts`
+      )
     ]);
 
   const byCommercialStatus: Record<string, number> = {};
