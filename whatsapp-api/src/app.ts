@@ -6,6 +6,7 @@ import { pinoHttp } from 'pino-http';
 import { requireApiKey } from './middleware/apiKey.js';
 import { errorHandler } from './middleware/errorHandler.js';
 import { adminRouter } from './routes/admin.js';
+import { analyticsRouter } from './routes/analytics.js';
 import { campaignsRouter } from './routes/campaigns.js';
 import { conversationsRouter } from './routes/conversations.js';
 import { crmRouter } from './routes/crm.js';
@@ -60,6 +61,7 @@ export function createApp(): express.Express {
   app.use('/api/v1/media', mediaRouter);
   app.use('/api/v1/templates', templatesRouter);
   app.use('/api/v1/campaigns', campaignsRouter);
+  app.use('/api/v1/analytics', analyticsRouter);
 
   app.use((_req, res) => {
     res.status(404).json({ error: 'Ruta no encontrada.' });
