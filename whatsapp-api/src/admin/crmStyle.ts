@@ -23,7 +23,7 @@ nav a:hover, nav a.active { color: var(--brand); background: #f1edff; }
 .content { padding: 28px; min-width: 0; }
 .view { max-width: 1450px; margin: 0 auto; }
 .view-head { display: flex; align-items: start; justify-content: space-between; gap: 20px; margin-bottom: 20px; }
-h1, h2, p { margin-top: 0; }
+h1, h2, h3, p { margin-top: 0; }
 h1 { margin-bottom: 6px; font-size: 28px; }
 h2 { margin-bottom: 4px; font-size: 20px; }
 .view-head p, .muted { color: var(--muted); }
@@ -51,6 +51,18 @@ input:focus, select:focus, textarea:focus { border-color: var(--brand); box-shad
 .label-options { display: flex; flex-wrap: wrap; gap: 8px; }
 .label-option { display: inline-flex !important; grid-auto-flow: column; align-items: center; width: auto; gap: 7px !important; border: 1px solid var(--border); border-radius: 999px; padding: 7px 10px; color: var(--text) !important; background: #fff; }
 .label-option input { width: auto; margin: 0; accent-color: var(--brand); }
+.attachment-section { margin-top: 22px; padding-top: 20px; border-top: 1px solid var(--border); }
+.attachment-head { display: flex; align-items: start; justify-content: space-between; gap: 12px; margin-bottom: 12px; }
+.attachment-head h3 { margin-bottom: 4px; font-size: 17px; }
+.attachment-head p { margin-bottom: 0; color: var(--muted); font-size: 13px; }
+.attachment-grid { display: grid; grid-template-columns: repeat(auto-fill,minmax(190px,1fr)); gap: 12px; }
+.attachment-card { min-width: 0; border: 1px solid var(--border); border-radius: 12px; padding: 10px; background: #fafbff; }
+.attachment-image, .attachment-video { width: 100%; height: 150px; border-radius: 9px; object-fit: cover; background: #e9edf5; }
+.attachment-audio { width: 100%; min-height: 42px; }
+.attachment-document { min-height: 110px; display: grid; place-items: center; gap: 8px; border: 1px dashed var(--border); border-radius: 9px; color: var(--brand); font-weight: 800; text-align: center; padding: 12px; }
+.attachment-icon { width: 46px; height: 46px; border-radius: 10px; display: grid; place-items: center; background: #efeaff; }
+.attachment-name { margin-top: 9px; font-weight: 800; font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.attachment-caption { margin-top: 4px; color: var(--muted); font-size: 12px; line-height: 1.35; }
 .actions { display: flex; justify-content: flex-end; margin-top: 18px; }
 .inline-form { grid-template-columns: repeat(4,minmax(140px,1fr)) auto; background: #fff; border: 1px solid var(--border); border-radius: 16px; padding: 16px; }
 .stack-form { padding: 18px; margin-bottom: 16px; }
@@ -78,5 +90,6 @@ input:focus, select:focus, textarea:focus { border-color: var(--brand); box-shad
   .topbar { padding: 0 12px; gap: 12px; }
   nav { display: none; }
   .form-grid, .filters { grid-template-columns: 1fr; }
+  .attachment-grid { grid-template-columns: 1fr; }
 }
 `;
