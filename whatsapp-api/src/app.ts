@@ -47,7 +47,7 @@ export function createApp(): express.Express {
   }));
   app.use(express.urlencoded({ extended: false, limit: '16kb' }));
   app.use(express.json({
-    limit: '2mb',
+    limit: '1mb',
     verify: (req, _res, buf) => {
       (req as { rawBody?: Buffer }).rawBody = buf;
     }
