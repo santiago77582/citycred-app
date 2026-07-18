@@ -22,6 +22,7 @@ export const CRM_HTML = String.raw`<!doctype html>
       <button class="menu-item" data-view="team" type="button">Equipo</button>
       <button class="menu-item" data-view="labels" type="button">Etiquetas</button>
       <button class="menu-item" data-view="quickReplies" type="button">Respuestas rápidas</button>
+      <button class="menu-item" data-view="templates" type="button">Plantillas de Meta</button>
     </aside>
 
     <section class="content">
@@ -107,6 +108,33 @@ export const CRM_HTML = String.raw`<!doctype html>
           <button class="primary" type="submit">Guardar respuesta</button>
         </form>
         <div id="quickReplyList" class="cards"></div>
+      </section>
+
+      <section id="templatesView" class="view hidden">
+        <div class="view-head">
+          <div>
+            <h1>Plantillas de Meta</h1>
+            <p>Estados y contenido obtenidos directamente de la cuenta de WhatsApp.</p>
+          </div>
+          <button id="syncTemplates" class="primary" type="button">Sincronizar con Meta</button>
+        </div>
+        <div class="template-notice">
+          Sincronizar solo actualiza la lista. No envía campañas ni mensajes.
+        </div>
+        <div class="filters template-filters">
+          <input id="templateSearch" type="search" placeholder="Buscar plantilla o categoría">
+          <select id="templateStatusFilter">
+            <option value="">Todos los estados</option>
+            <option value="APPROVED">Aprobada</option>
+            <option value="PENDING">Pendiente</option>
+            <option value="REJECTED">Rechazada</option>
+            <option value="PAUSED">Pausada</option>
+            <option value="DISABLED">Desactivada</option>
+            <option value="NOT_FOUND">Ya no aparece en Meta</option>
+          </select>
+        </div>
+        <div id="templateSummary" class="template-summary"></div>
+        <div id="templateList" class="template-list"></div>
       </section>
     </section>
   </main>

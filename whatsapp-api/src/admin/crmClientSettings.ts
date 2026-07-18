@@ -1,5 +1,6 @@
 import { CRM_ATTACHMENTS_JS } from './crmClientAttachments.js';
 import { CRM_LABELS_JS } from './crmClientLabels.js';
+import { CRM_TEMPLATES_JS } from './crmClientTemplates.js';
 
 export const CRM_SETTINGS_JS = String.raw`
 (function () {
@@ -118,4 +119,4 @@ export const CRM_SETTINGS_JS = String.raw`
   crm.registerLoader('labels', loadLabels);
   crm.registerLoader('quickReplies', loadQuickReplies);
 })();
-` + '\n' + CRM_LABELS_JS + '\n' + CRM_ATTACHMENTS_JS;
+` + '\n' + CRM_LABELS_JS + '\n' + CRM_ATTACHMENTS_JS + '\n' + CRM_TEMPLATES_JS;
