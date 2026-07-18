@@ -2,6 +2,7 @@ import { Router } from 'express';
 import rateLimit from 'express-rate-limit';
 import { z } from 'zod';
 import { AppError } from '../errors/AppError.js';
+import { setConversationBotPause } from '../repository.js';
 import { fetchAllMetaTemplates } from '../services/metaTemplates.js';
 import {
   getWhatsappTemplateById,
@@ -77,9 +78,14 @@ templatesRouter.post('/:templateId/send', sendLimiter, async (req, res) => {
     languageCode: template.languageCode,
     components: input.components
   });
+  const botPausedUntil = await setConversationBotPause(
+    outcome.payload.to,
+    new Date(Date.now() + 5 * 60_000)
+  );
   res.status(outcome.statusCode).json({
     ...outcome.payload,
     templateId: template.id,
-    category: template.category
+    category: template.category,
+    botPausedUntil
   });
 });
