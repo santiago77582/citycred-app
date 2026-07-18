@@ -7,6 +7,10 @@ ALTER TABLE system_alerts
   ADD COLUMN IF NOT EXISTS resolved_at TIMESTAMPTZ,
   ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW();
 
+-- El índice anterior consideraba "abierta" a una alerta no reconocida.
+-- Desde esta migración, una alerta solo deja de estar abierta cuando se resuelve.
+DROP INDEX IF EXISTS system_alerts_open_idx;
+
 CREATE UNIQUE INDEX IF NOT EXISTS system_alerts_open_fingerprint_unique
   ON system_alerts(fingerprint)
   WHERE fingerprint IS NOT NULL AND resolved_at IS NULL;
