@@ -88,12 +88,12 @@ test('envía una plantilla aprobada usando el nombre e idioma sincronizados', as
   const ids = await seedTemplates();
   const originalFetch = globalThis.fetch;
   let metaCalls = 0;
-  let sentPayload: Record<string, unknown> | null = null;
+  const sentPayloads: Record<string, unknown>[] = [];
   globalThis.fetch = async (input, init) => {
     const url = String(input);
     if (url.startsWith(server.baseUrl)) return originalFetch(input, init);
     metaCalls += 1;
-    sentPayload = JSON.parse(String(init?.body)) as Record<string, unknown>;
+    sentPayloads.push(JSON.parse(String(init?.body)) as Record<string, unknown>);
     return new Response(JSON.stringify({ messages: [{ id: 'wamid.template.approved' }] }), {
       status: 200,
       headers: { 'content-type': 'application/json' }
@@ -120,7 +120,7 @@ test('envía una plantilla aprobada usando el nombre e idioma sincronizados', as
     );
     assert.equal(response.status, 201);
     assert.equal(metaCalls, 1);
-    const template = sentPayload?.template as {
+    const template = sentPayloads[0]?.template as {
       name?: string;
       language?: { code?: string };
     } | undefined;
