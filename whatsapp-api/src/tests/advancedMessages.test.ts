@@ -35,13 +35,11 @@ async function post(path: string, body: unknown): Promise<Response> {
 
 test('envía botones oficiales y persiste el mensaje', async () => {
   const originalFetch = globalThis.fetch;
-  let metaBody: Record<string, unknown> | null = null;
-  let metaCalls = 0;
+  const metaBodies: Array<Record<string, unknown>> = [];
   globalThis.fetch = async (input, init) => {
     const url = String(input);
     if (url.startsWith(server.baseUrl)) return originalFetch(input, init);
-    metaCalls += 1;
-    metaBody = JSON.parse(String(init?.body)) as Record<string, unknown>;
+    metaBodies.push(JSON.parse(String(init?.body)) as Record<string, unknown>);
     return new Response(JSON.stringify({ messages: [{ id: 'wamid-botones-1' }] }), {
       status: 200,
       headers: { 'content-type': 'application/json' }
@@ -61,9 +59,11 @@ test('envía botones oficiales y persiste el mensaje', async () => {
       ]
     });
     assert.equal(response.status, 201);
-    assert.equal(metaCalls, 1);
-    assert.equal(metaBody?.type, 'interactive');
-    const interactive = metaBody?.interactive as Record<string, unknown>;
+    assert.equal(metaBodies.length, 1);
+    const metaBody = metaBodies[0];
+    assert.ok(metaBody);
+    assert.equal(metaBody.type, 'interactive');
+    const interactive = metaBody.interactive as Record<string, unknown>;
     assert.equal(interactive.type, 'button');
     const action = interactive.action as { buttons: unknown[] };
     assert.equal(action.buttons.length, 3);
