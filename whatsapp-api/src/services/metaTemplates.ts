@@ -17,14 +17,8 @@ type MetaTemplateRecord = {
 
 type MetaTemplatePage = {
   data?: MetaTemplateRecord[];
-  paging?: {
-    cursors?: { after?: unknown };
-  };
-  error?: {
-    message?: string;
-    code?: number;
-    error_subcode?: number;
-  };
+  paging?: { cursors?: { after?: unknown } };
+  error?: { message?: string; code?: number; error_subcode?: number };
 };
 
 function requireTemplateConfig(): void {
@@ -52,7 +46,6 @@ function normalizeTemplate(record: MetaTemplateRecord): SyncedTemplate | null {
   const status = normalizeString(record.status);
   if (!metaTemplateId || !name || !languageCode || !status) return null;
 
-  const rejection = normalizeString(record.rejected_reason);
   return {
     metaTemplateId,
     name,
@@ -60,7 +53,7 @@ function normalizeTemplate(record: MetaTemplateRecord): SyncedTemplate | null {
     category: normalizeString(record.category),
     status: status.toUpperCase(),
     components: Array.isArray(record.components) ? record.components : [],
-    rejectionReason: rejection
+    rejectionReason: normalizeString(record.rejected_reason)
   };
 }
 
@@ -147,9 +140,16 @@ export async function fetchAllMetaTemplates(): Promise<SyncedTemplate[]> {
     const url = new URL(baseUrl);
     if (after) url.searchParams.set('after', after);
     const response = await fetchTemplatePage(url);
-    for (const record of response.data ?? []) {
-      const template = normalizeTemplate(record);
-      if (!template) continue;
+    const records = response.data ?? [];
+    for (let index = 0; index < records.length; index += 1) {
+      const template = normalizeTemplate(records[index] ?? {});
+      if (!template) {
+        throw new AppError(
+          'Meta devolvió una plantilla incompleta. Se canceló la sincronización para no marcar plantillas válidas como ausentes.',
+          502,
+          { page: page + 1, record: index + 1 }
+        );
+      }
       const key = `${template.name}\u0000${template.languageCode}`;
       if (seenKeys.has(key)) continue;
       seenKeys.add(key);
@@ -157,9 +157,7 @@ export async function fetchAllMetaTemplates(): Promise<SyncedTemplate[]> {
     }
 
     const nextAfter = normalizeString(response.paging?.cursors?.after);
-    if (!nextAfter || nextAfter === after || (response.data?.length ?? 0) === 0) {
-      return templates;
-    }
+    if (!nextAfter || nextAfter === after || records.length === 0) return templates;
     after = nextAfter;
   }
 
