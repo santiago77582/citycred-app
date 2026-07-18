@@ -6,17 +6,21 @@ import { CAMPAIGN_UI_CSS } from '../admin/campaignUiStyle.js';
 import { CRM_ANALYTICS_JS } from '../admin/crmClientAnalytics.js';
 import { CRM_CORE_JS } from '../admin/crmClientCore.js';
 import { CRM_SETTINGS_JS } from '../admin/crmClientSettings.js';
+import { INDIVIDUAL_LOGIN_HTML } from '../admin/loginUi.js';
 import { CRM_HTML } from '../admin/crmPage.js';
 import { CRM_CSS } from '../admin/crmStyle.js';
 import { MEDIA_COMPOSER_JS } from '../admin/mediaComposer.js';
 import { MEDIA_COMPOSER_CSS } from '../admin/mediaComposerStyle.js';
 import { TEMPLATE_COMPOSER_JS } from '../admin/templateComposer.js';
 import { TEMPLATE_UI_CSS } from '../admin/templateUiStyle.js';
-import { ADMIN_CSS, ADMIN_JS, DASHBOARD_HTML, LOGIN_HTML } from '../admin/ui.js';
+import { ADMIN_CSS, ADMIN_JS, DASHBOARD_HTML } from '../admin/ui.js';
+import { writeAuditEvent } from '../crm/auditRepository.js';
+import { authenticateUser } from '../crm/teamRepository.js';
 import {
   clearAdminSession,
   isValidAdminPassword,
   requireAdminSession,
+  requirePanelRole,
   setAdminSession
 } from '../middleware/adminSession.js';
 import {
@@ -42,6 +46,14 @@ const loginLimiter = rateLimit({
   message: 'Demasiados intentos. Esperá unos minutos y probá nuevamente.'
 });
 
+const loginSchema = z.object({
+  email: z.preprocess(
+    (value) => typeof value === 'string' && value.trim() === '' ? undefined : value,
+    z.string().email().max(254).optional()
+  ),
+  password: z.string().min(1).max(200)
+});
+
 const conversationQuerySchema = z.object({
   limit: z.coerce.number().int().min(1).max(200).default(100)
 });
@@ -59,6 +71,18 @@ const pauseSchema = z.object({
   minutes: z.coerce.number().int().min(0).max(10_080)
 });
 
+function loginError(res: Parameters<typeof adminRouter.post>[1] extends never ? never : any): void {
+  res
+    .status(401)
+    .type('html')
+    .send(
+      INDIVIDUAL_LOGIN_HTML.replace(
+        '<!--ERROR-->',
+        '<div class="alert">Correo o contraseña incorrectos.</div>'
+      )
+    );
+}
+
 adminRouter.get('/assets/app.css', (_req, res) => {
   res.type('text/css').send(`${ADMIN_CSS}\n${MEDIA_COMPOSER_CSS}\n${TEMPLATE_UI_CSS}`);
 });
@@ -69,19 +93,32 @@ adminRouter.get('/assets/crm.css', (_req, res) => {
 });
 
 adminRouter.get('/login', (_req, res) => {
-  res.type('html').send(LOGIN_HTML);
+  res.type('html').send(INDIVIDUAL_LOGIN_HTML);
 });
 
-adminRouter.post('/login', loginLimiter, (req, res) => {
-  const candidate = typeof req.body?.password === 'string' ? req.body.password : '';
-  if (!isValidAdminPassword(candidate)) {
-    res
-      .status(401)
-      .type('html')
-      .send(LOGIN_HTML.replace('<!--ERROR-->', '<div class="alert">Contraseña incorrecta.</div>'));
+adminRouter.post('/login', loginLimiter, async (req, res) => {
+  const parsed = loginSchema.safeParse(req.body);
+  if (!parsed.success) {
+    loginError(res);
     return;
   }
-  setAdminSession(res);
+
+  if (parsed.data.email) {
+    const user = await authenticateUser(parsed.data.email, parsed.data.password);
+    if (!user) {
+      loginError(res);
+      return;
+    }
+    setAdminSession(res, user);
+    res.redirect(303, '/admin');
+    return;
+  }
+
+  if (!isValidAdminPassword(parsed.data.password)) {
+    loginError(res);
+    return;
+  }
+  setAdminSession(res, null);
   res.redirect(303, '/admin');
 });
 
@@ -94,8 +131,16 @@ adminRouter.use(requireAdminSession);
 adminRouter.use('/api/crm', crmRouter);
 adminRouter.use('/api/media', mediaRouter);
 adminRouter.use('/api/templates', templatesRouter);
-adminRouter.use('/api/campaigns', campaignsRouter);
-adminRouter.use('/api/analytics', analyticsRouter);
+adminRouter.use(
+  '/api/campaigns',
+  requirePanelRole('ADMIN', 'SUPERVISOR'),
+  campaignsRouter
+);
+adminRouter.use(
+  '/api/analytics',
+  requirePanelRole('ADMIN', 'SUPERVISOR'),
+  analyticsRouter
+);
 
 adminRouter.get('/assets/app.js', (_req, res) => {
   res
@@ -115,6 +160,11 @@ adminRouter.get('/crm', (_req, res) => {
   res.type('html').send(CRM_HTML);
 });
 
+adminRouter.get('/api/session', (req, res) => {
+  res.setHeader('Cache-Control', 'private, no-store, max-age=0');
+  res.json({ user: req.adminUser });
+});
+
 adminRouter.get('/api/conversations', async (req, res) => {
   const { limit } = conversationQuerySchema.parse(req.query);
   res.json({ conversations: await listConversations(limit) });
@@ -129,10 +179,22 @@ adminRouter.get('/api/conversations/:waId/messages', async (req, res) => {
 adminRouter.post('/api/messages/text', async (req, res) => {
   const input = textSchema.parse(req.body);
   const outcome = await sendTextAndPersist(input);
+  const waId = normalizePhone(input.to);
   const botPausedUntil = await setConversationBotPause(
-    normalizePhone(input.to),
+    waId,
     new Date(Date.now() + 5 * 60_000)
   );
+  await writeAuditEvent({
+    actorUserId: req.adminUser?.userId ?? null,
+    action: 'MANUAL_MESSAGE_SENT',
+    entityType: 'CONTACT',
+    entityId: waId,
+    afterData: {
+      messageId: outcome.payload.messageId,
+      wamid: outcome.payload.wamid,
+      status: outcome.payload.status
+    }
+  });
   res.status(outcome.statusCode).json({ ...outcome.payload, botPausedUntil });
 });
 
@@ -141,5 +203,12 @@ adminRouter.post('/api/conversations/:waId/pause', async (req, res) => {
   const waId = normalizePhone(String(req.params.waId));
   const pausedUntil = minutes === 0 ? null : new Date(Date.now() + minutes * 60_000);
   const botPausedUntil = await setConversationBotPause(waId, pausedUntil);
+  await writeAuditEvent({
+    actorUserId: req.adminUser?.userId ?? null,
+    action: minutes === 0 ? 'BOT_RESUMED' : 'BOT_PAUSED',
+    entityType: 'CONTACT',
+    entityId: waId,
+    afterData: { minutes, botPausedUntil }
+  });
   res.json({ waId, botPausedUntil });
 });
