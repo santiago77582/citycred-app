@@ -20,12 +20,14 @@ test('la migración de plataforma crea CRM, equipo y auditoría', async () => {
   const { Pool } = db.adapters.createPg();
   const pool = new Pool();
 
-  const tables = await pool.query<{ table_name: string }>(
+  const tables = await pool.query(
     `SELECT table_name
      FROM information_schema.tables
      WHERE table_schema = 'public'`
   );
-  const names = new Set(tables.rows.map((row) => row.table_name));
+  const names = new Set(
+    (tables.rows as Array<{ table_name: string }>).map((row) => row.table_name)
+  );
 
   for (const expected of [
     'app_users',
@@ -38,22 +40,26 @@ test('la migración de plataforma crea CRM, equipo y auditoría', async () => {
     assert.ok(names.has(expected), `falta la tabla ${expected}`);
   }
 
-  const contactColumns = await pool.query<{ column_name: string }>(
+  const contactColumns = await pool.query(
     `SELECT column_name
      FROM information_schema.columns
      WHERE table_schema = 'public' AND table_name = 'contacts'`
   );
-  const contactNames = new Set(contactColumns.rows.map((row) => row.column_name));
+  const contactNames = new Set(
+    (contactColumns.rows as Array<{ column_name: string }>).map((row) => row.column_name)
+  );
   for (const expected of ['entity', 'commercial_status', 'consent_status', 'opt_out_at']) {
     assert.ok(contactNames.has(expected), `falta contacts.${expected}`);
   }
 
-  const conversationColumns = await pool.query<{ column_name: string }>(
+  const conversationColumns = await pool.query(
     `SELECT column_name
      FROM information_schema.columns
      WHERE table_schema = 'public' AND table_name = 'conversations'`
   );
-  const conversationNames = new Set(conversationColumns.rows.map((row) => row.column_name));
+  const conversationNames = new Set(
+    (conversationColumns.rows as Array<{ column_name: string }>).map((row) => row.column_name)
+  );
   for (const expected of ['assigned_user_id', 'unread_count', 'priority']) {
     assert.ok(conversationNames.has(expected), `falta conversations.${expected}`);
   }
