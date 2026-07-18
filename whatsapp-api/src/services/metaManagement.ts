@@ -23,46 +23,14 @@ function requireManagementConfig(): void {
   }
 }
 
-async function graphRequest<T>(params: {
-  path: string;
-  method?: 'GET' | 'POST';
-  query?: Record<string, string>;
-  body?: Record<string, unknown>;
-}): Promise<T> {
+function managementUrl(path: string): URL {
   requireManagementConfig();
-  const url = new URL(
-    `https://graph.facebook.com/${config.META_GRAPH_VERSION}/${params.path.replace(/^\//, '')}`
+  return new URL(
+    `https://graph.facebook.com/${config.META_GRAPH_VERSION}/${path.replace(/^\//, '')}`
   );
-  for (const [key, value] of Object.entries(params.query ?? {})) {
-    url.searchParams.set(key, value);
-  }
+}
 
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), config.META_REQUEST_TIMEOUT_MS);
-  let response: Response;
-  try {
-    response = await fetch(url, {
-      method: params.method ?? 'GET',
-      headers: {
-        Authorization: `Bearer ${config.WHATSAPP_ACCESS_TOKEN}`,
-        ...(params.body ? { 'Content-Type': 'application/json' } : {})
-      },
-      ...(params.body ? { body: JSON.stringify(params.body) } : {}),
-      redirect: 'error',
-      signal: controller.signal
-    });
-  } catch (error) {
-    throw new AppError(
-      controller.signal.aborted
-        ? 'Meta demoró demasiado en responder.'
-        : 'No se pudo conectar con Meta para administrar la cuenta.',
-      controller.signal.aborted ? 504 : 502,
-      { transient: true, cause: error instanceof Error ? error.name : 'unknown' }
-    );
-  } finally {
-    clearTimeout(timeout);
-  }
-
+async function parseJson<T>(response: Response): Promise<T & MetaErrorEnvelope> {
   let data: T & MetaErrorEnvelope;
   try {
     data = await response.json() as T & MetaErrorEnvelope;
@@ -79,6 +47,53 @@ async function graphRequest<T>(params: {
     });
   }
   return data;
+}
+
+async function fetchManagement(
+  url: URL,
+  init: RequestInit,
+  timeoutMs = config.META_REQUEST_TIMEOUT_MS
+): Promise<Response> {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await fetch(url, {
+      ...init,
+      redirect: 'error',
+      signal: controller.signal
+    });
+  } catch (error) {
+    throw new AppError(
+      controller.signal.aborted
+        ? 'Meta demoró demasiado en responder.'
+        : 'No se pudo conectar con Meta para administrar la cuenta.',
+      controller.signal.aborted ? 504 : 502,
+      { transient: true, cause: error instanceof Error ? error.name : 'unknown' }
+    );
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+async function graphRequest<T>(params: {
+  path: string;
+  method?: 'GET' | 'POST';
+  query?: Record<string, string>;
+  body?: Record<string, unknown>;
+}): Promise<T> {
+  const url = managementUrl(params.path);
+  for (const [key, value] of Object.entries(params.query ?? {})) {
+    url.searchParams.set(key, value);
+  }
+  const response = await fetchManagement(url, {
+    method: params.method ?? 'GET',
+    headers: {
+      Authorization: `Bearer ${config.WHATSAPP_ACCESS_TOKEN}`,
+      ...(params.body ? { 'Content-Type': 'application/json' } : {})
+    },
+    ...(params.body ? { body: JSON.stringify(params.body) } : {})
+  });
+  return parseJson<T>(response);
 }
 
 export type BusinessProfile = {
@@ -102,9 +117,6 @@ export type PhoneNumberStatus = {
   code_verification_status?: string;
   display_phone_number?: string;
   quality_rating?: string;
-  name_status?: string;
-  platform_type?: string;
-  throughput?: unknown;
 };
 
 export type CommerceSettings = {
@@ -149,6 +161,50 @@ export async function updateBusinessProfile(profile: {
   });
 }
 
+export async function uploadBusinessProfilePicture(params: {
+  bytes: Buffer;
+  mimeType: 'image/jpeg' | 'image/png';
+}): Promise<{ applied: true }> {
+  requireManagementConfig();
+  const appId = process.env.META_APP_ID?.trim();
+  if (!appId) {
+    throw new AppError('Falta META_APP_ID para cargar la foto del perfil.', 503);
+  }
+  if (params.bytes.length === 0) throw new AppError('La imagen está vacía.', 400);
+  if (params.bytes.length > 5 * 1024 * 1024) {
+    throw new AppError('La foto de perfil supera el máximo interno de 5 MB.', 413);
+  }
+
+  const sessionUrl = managementUrl(`${appId}/uploads`);
+  sessionUrl.searchParams.set('file_length', String(params.bytes.length));
+  sessionUrl.searchParams.set('file_type', params.mimeType);
+  const sessionResponse = await fetchManagement(sessionUrl, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${config.WHATSAPP_ACCESS_TOKEN}` }
+  });
+  const session = await parseJson<{ id?: string }>(sessionResponse);
+  if (!session.id) throw new AppError('Meta no devolvió el identificador de carga.', 502);
+
+  const uploadResponse = await fetchManagement(
+    managementUrl(session.id),
+    {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${config.WHATSAPP_ACCESS_TOKEN}`,
+        'Content-Type': params.mimeType,
+        file_offset: '0'
+      },
+      body: params.bytes as unknown as BodyInit
+    },
+    config.META_MEDIA_TIMEOUT_MS
+  );
+  const uploaded = await parseJson<{ h?: string }>(uploadResponse);
+  if (!uploaded.h) throw new AppError('Meta no devolvió el identificador de la imagen.', 502);
+
+  await updateBusinessProfile({ profilePictureHandle: uploaded.h });
+  return { applied: true };
+}
+
 export async function getPhoneNumberStatus(): Promise<PhoneNumberStatus> {
   return graphRequest({
     path: String(config.WHATSAPP_PHONE_NUMBER_ID),
@@ -158,10 +214,7 @@ export async function getPhoneNumberStatus(): Promise<PhoneNumberStatus> {
         'verified_name',
         'code_verification_status',
         'display_phone_number',
-        'quality_rating',
-        'name_status',
-        'platform_type',
-        'throughput'
+        'quality_rating'
       ].join(',')
     }
   });
