@@ -19,6 +19,7 @@ import {
 } from '../repository.js';
 import { normalizePhone } from '../utils/phone.js';
 import { crmRouter } from './crm.js';
+import { mediaRouter } from './media.js';
 import { sendTextAndPersist } from './messages.js';
 
 export const adminRouter = Router();
@@ -68,7 +69,6 @@ adminRouter.post('/login', loginLimiter, (req, res) => {
       .send(LOGIN_HTML.replace('<!--ERROR-->', '<div class="alert">Contraseña incorrecta.</div>'));
     return;
   }
-
   setAdminSession(res);
   res.redirect(303, '/admin');
 });
@@ -80,6 +80,7 @@ adminRouter.post('/logout', (_req, res) => {
 
 adminRouter.use(requireAdminSession);
 adminRouter.use('/api/crm', crmRouter);
+adminRouter.use('/api/media', mediaRouter);
 
 adminRouter.get('/assets/app.js', (_req, res) => {
   res.type('application/javascript').send(ADMIN_JS);
