@@ -1,8 +1,7 @@
 import {
   insertMessageAttachment,
   recordMessageMilestone,
-  registerInboundActivity,
-  type AttachmentType
+  registerInboundActivity
 } from '../platformRepository.js';
 import {
   createWebhookEvent,
@@ -10,65 +9,12 @@ import {
   insertMessage,
   updateMessageStatus,
   upsertContact,
-  upsertConversation,
-  type Status
+  upsertConversation
 } from '../repository.js';
 import { sanitizeInboundMessage, sanitizeWebhookPayload } from '../security/webhookSanitizer.js';
 import type { MetaWebhookPayload } from '../types/whatsapp.js';
 import { logger } from '../utils/logger.js';
-
-export function messageText(message: Record<string, unknown>): string | null {
-  const type = String(message.type ?? 'unknown');
-  if (type === 'text') return String((message.text as { body?: unknown } | undefined)?.body ?? '');
-  if (type === 'button') return String((message.button as { text?: unknown } | undefined)?.text ?? '');
-  if (type === 'image' || type === 'video' || type === 'document') {
-    const media = message[type] as { caption?: unknown; filename?: unknown } | undefined;
-    return String(media?.caption ?? media?.filename ?? '');
-  }
-  if (type === 'audio') return '[Audio]';
-  if (type === 'sticker') return '[Sticker]';
-  if (type === 'interactive') {
-    const interactive = message.interactive as Record<string, unknown> | undefined;
-    const buttonReply = interactive?.button_reply as { title?: unknown } | undefined;
-    const listReply = interactive?.list_reply as { title?: unknown } | undefined;
-    return String(buttonReply?.title ?? listReply?.title ?? '');
-  }
-  return null;
-}
-
-export function mapStatus(status: string): Status {
-  switch (status) {
-    case 'sent': return 'SENT';
-    case 'delivered': return 'DELIVERED';
-    case 'read': return 'READ';
-    case 'failed': return 'FAILED';
-    default: return 'PENDING';
-  }
-}
-
-export function attachmentFrom(message: Record<string, unknown>): {
-  mediaId: string | null;
-  mediaType: AttachmentType;
-  mimeType: string | null;
-  filename: string | null;
-  caption: string | null;
-} | null {
-  const type = String(message.type ?? '');
-  if (!['image', 'audio', 'video', 'document', 'sticker'].includes(type)) return null;
-  const media = message[type] as Record<string, unknown> | undefined;
-  if (!media) return null;
-  const voice = type === 'audio' && media.voice === true;
-  const mediaType: AttachmentType = voice
-    ? 'VOICE'
-    : type.toUpperCase() as AttachmentType;
-  return {
-    mediaId: typeof media.id === 'string' ? media.id : null,
-    mediaType,
-    mimeType: typeof media.mime_type === 'string' ? media.mime_type : null,
-    filename: typeof media.filename === 'string' ? media.filename : null,
-    caption: typeof media.caption === 'string' ? media.caption : null
-  };
-}
+import { attachmentFrom, mapStatus, messageText } from './webhookMessage.js';
 
 export async function processWebhook(payload: MetaWebhookPayload): Promise<void> {
   const safePayload = sanitizeWebhookPayload(payload);
