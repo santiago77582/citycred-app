@@ -80,10 +80,15 @@ export async function updateCrmContact(
   actorUserId?: string | null
 ) {
   const before = await getCrmContactByWaId(waId);
+  const consentChanged = Object.hasOwn(patch, 'consentStatus');
   const consentAt = patch.consentStatus === 'GRANTED' ? new Date() : null;
+  const optOutChanged = patch.consentStatus === 'GRANTED'
+    || patch.consentStatus === 'REVOKED'
+    || patch.commercialStatus === 'DO_NOT_CONTACT';
   const optOutAt = patch.commercialStatus === 'DO_NOT_CONTACT' || patch.consentStatus === 'REVOKED'
     ? new Date()
     : null;
+
   const result = await pool.query(
     `UPDATE contacts SET
        profile_name = CASE WHEN $2::boolean THEN $3 ELSE profile_name END,
@@ -94,8 +99,8 @@ export async function updateCrmContact(
        commercial_status = COALESCE($12, commercial_status),
        notes = CASE WHEN $13::boolean THEN $14 ELSE notes END,
        consent_status = COALESCE($15, consent_status),
-       consent_at = COALESCE($16, consent_at),
-       opt_out_at = COALESCE($17, opt_out_at),
+       consent_at = CASE WHEN $16::boolean THEN $17 ELSE consent_at END,
+       opt_out_at = CASE WHEN $18::boolean THEN $19 ELSE opt_out_at END,
        updated_at = NOW()
      WHERE wa_id = $1 AND archived_at IS NULL
      RETURNING *`,
@@ -109,8 +114,8 @@ export async function updateCrmContact(
       patch.commercialStatus ?? null,
       Object.hasOwn(patch, 'notes'), patch.notes ?? null,
       patch.consentStatus ?? null,
-      consentAt,
-      optOutAt
+      consentChanged, consentAt,
+      optOutChanged, optOutAt
     ]
   );
   const after = result.rows[0];
