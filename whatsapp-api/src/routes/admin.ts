@@ -14,6 +14,7 @@ import {
   setConversationBotPause
 } from '../repository.js';
 import { normalizePhone } from '../utils/phone.js';
+import { crmRouter } from './crm.js';
 import { sendTextAndPersist } from './messages.js';
 
 export const adminRouter = Router();
@@ -71,6 +72,7 @@ adminRouter.post('/logout', (_req, res) => {
 });
 
 adminRouter.use(requireAdminSession);
+adminRouter.use('/api/crm', crmRouter);
 
 adminRouter.get('/assets/app.js', (_req, res) => {
   res.type('application/javascript').send(ADMIN_JS);
