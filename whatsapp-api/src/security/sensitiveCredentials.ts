@@ -9,6 +9,7 @@ export const CREDENTIAL_SAFETY_REPLY =
   'Por seguridad, nunca compartas usuarios, claves ni contraseñas de SIAF, Haberes 2.0, ARCA u otros portales. CityCred no te las va a pedir. Hacé el trámite directamente desde el portal oficial y, si necesitás ayuda, te explicamos los pasos sin acceder a tu cuenta.';
 
 export function looksLikeCredentialSharing(text: string): boolean {
+  LABELED_SECRET.lastIndex = 0;
   return SHARING_INTENT.test(text) || LABELED_SECRET.test(text);
 }
 
