@@ -24,6 +24,7 @@ export const CRM_HTML = String.raw`<!doctype html>
       <button class="menu-item" data-view="quickReplies" type="button">Respuestas rápidas</button>
       <button class="menu-item" data-view="templates" type="button">Plantillas de Meta</button>
       <button class="menu-item" data-view="campaigns" type="button">Campañas</button>
+      <button class="menu-item" data-view="analytics" type="button">Estadísticas</button>
     </aside>
 
     <section class="content">
@@ -191,6 +192,54 @@ export const CRM_HTML = String.raw`<!doctype html>
             </section>
           </section>
         </div>
+      </section>
+
+      <section id="analyticsView" class="view hidden">
+        <div class="view-head analytics-head">
+          <div>
+            <h1>Estadísticas</h1>
+            <p>Actividad operativa del CRM y WhatsApp. Esta sección es de solo lectura.</p>
+          </div>
+          <div class="analytics-controls">
+            <label for="analyticsDays">Período</label>
+            <select id="analyticsDays">
+              <option value="7">Últimos 7 días</option>
+              <option value="30" selected>Últimos 30 días</option>
+              <option value="90">Últimos 90 días</option>
+              <option value="365">Últimos 365 días</option>
+            </select>
+            <button id="refreshAnalytics" class="secondary" type="button">Actualizar</button>
+          </div>
+        </div>
+        <div id="analyticsLimitNotice" class="analytics-limit-notice hidden"></div>
+        <div id="analyticsKpis" class="analytics-kpis"></div>
+        <div class="analytics-grid">
+          <section class="analytics-panel analytics-panel-wide">
+            <div class="analytics-panel-head"><h2>Actividad diaria</h2><span id="analyticsPeriodLabel"></span></div>
+            <div id="analyticsDailyChart" class="analytics-daily-chart"></div>
+          </section>
+          <section class="analytics-panel">
+            <h2>Consentimiento</h2>
+            <div id="analyticsConsent" class="analytics-bars"></div>
+          </section>
+          <section class="analytics-panel">
+            <h2>Estado de mensajes</h2>
+            <div id="analyticsMessageStatus" class="analytics-bars"></div>
+          </section>
+          <section class="analytics-panel">
+            <h2>Principales entidades</h2>
+            <div id="analyticsEntities" class="analytics-bars"></div>
+          </section>
+          <section class="analytics-panel">
+            <h2>Estados comerciales</h2>
+            <div id="analyticsCommercialStatus" class="analytics-bars"></div>
+          </section>
+          <section class="analytics-panel analytics-panel-wide">
+            <h2>Operación y alertas</h2>
+            <div id="analyticsOperations" class="analytics-operation-grid"></div>
+          </section>
+        </div>
+        <p id="analyticsUpdatedAt" class="analytics-updated-at"></p>
       </section>
     </section>
   </main>
