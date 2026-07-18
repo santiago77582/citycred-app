@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import { CRM_ATTACHMENTS_JS } from '../admin/crmClientAttachments.js';
 import { CRM_CORE_JS } from '../admin/crmClientCore.js';
 import { CRM_SETTINGS_JS } from '../admin/crmClientSettings.js';
 import { CRM_HTML } from '../admin/crmPage.js';
@@ -16,5 +17,12 @@ test('el cliente CRM usa únicamente rutas protegidas del panel', () => {
   assert.match(CRM_SETTINGS_JS, /\/users/);
   assert.match(CRM_SETTINGS_JS, /\/labels/);
   assert.match(CRM_SETTINGS_JS, /\/quick-replies/);
-  assert.doesNotMatch(CRM_CORE_JS + CRM_SETTINGS_JS, /WHATSAPP_ACCESS_TOKEN|META_APP_SECRET/);
+  assert.match(CRM_ATTACHMENTS_JS, /\/admin\/api\/media/);
+  assert.match(CRM_ATTACHMENTS_JS, /attachment\.mediaType === 'IMAGE'/);
+  assert.match(CRM_ATTACHMENTS_JS, /<audio/);
+  assert.match(CRM_ATTACHMENTS_JS, /<video/);
+  assert.doesNotMatch(
+    CRM_CORE_JS + CRM_SETTINGS_JS + CRM_ATTACHMENTS_JS,
+    /WHATSAPP_ACCESS_TOKEN|META_APP_SECRET/
+  );
 });
