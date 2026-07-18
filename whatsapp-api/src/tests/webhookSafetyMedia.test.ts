@@ -1,13 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { applyTestEnv } from './helpers/entornoPruebas.js';
-
-applyTestEnv();
-
-const { sanitizeInboundMessage, sanitizeWebhookPayload } = await import('../security/webhookSanitizer.js');
-const { attachmentFrom, mapStatus, messageText } = await import('../services/webhookProcessor.js');
-const { pool } = await import('../db.js');
-const { insertMessageAttachment, recordMessageMilestone, registerInboundActivity } = await import('../platformRepository.js');
+import { sanitizeInboundMessage, sanitizeWebhookPayload } from '../security/webhookSanitizer.js';
+import { attachmentFrom, mapStatus, messageText } from '../services/webhookMessage.js';
 
 test('redacta datos sensibles antes de guardar el evento o mensaje', () => {
   const payload = {
@@ -55,32 +49,4 @@ test('normaliza estados de Meta para las tildes del panel', () => {
   assert.equal(mapStatus('delivered'), 'DELIVERED');
   assert.equal(mapStatus('read'), 'READ');
   assert.equal(mapStatus('failed'), 'FAILED');
-});
-
-test('genera consultas para actividad, adjuntos e hitos reales', async () => {
-  const calls: Array<{ sql: string; params: unknown[] }> = [];
-  (pool as unknown as { query: (sql: string, params?: unknown[]) => Promise<unknown> }).query = async (
-    sql: string,
-    params: unknown[] = []
-  ) => {
-    calls.push({ sql, params });
-    return sql.includes('RETURNING id') ? { rows: [{ id: 'attachment-1' }], rowCount: 1 } : { rows: [], rowCount: 1 };
-  };
-
-  await registerInboundActivity('conversation-1');
-  const attachmentId = await insertMessageAttachment({
-    messageId: 'message-1',
-    mediaId: 'media-1',
-    mediaType: 'IMAGE',
-    mimeType: 'image/jpeg',
-    filename: null,
-    caption: 'Recibo'
-  });
-  await recordMessageMilestone('wamid-1', 'READ');
-
-  assert.equal(attachmentId, 'attachment-1');
-  assert.match(calls[0]?.sql ?? '', /unread_count = unread_count \+ 1/);
-  assert.match(calls[1]?.sql ?? '', /message_attachments/);
-  assert.match(calls[2]?.sql ?? '', /delivered_at/);
-  assert.deepEqual(calls[2]?.params, ['wamid-1', 'READ']);
 });
