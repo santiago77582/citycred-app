@@ -1,6 +1,10 @@
 import { Router } from 'express';
 import rateLimit from 'express-rate-limit';
 import { z } from 'zod';
+import { CRM_CORE_JS } from '../admin/crmClientCore.js';
+import { CRM_SETTINGS_JS } from '../admin/crmClientSettings.js';
+import { CRM_HTML } from '../admin/crmPage.js';
+import { CRM_CSS } from '../admin/crmStyle.js';
 import { ADMIN_CSS, ADMIN_JS, DASHBOARD_HTML, LOGIN_HTML } from '../admin/ui.js';
 import {
   clearAdminSession,
@@ -47,6 +51,9 @@ const pauseSchema = z.object({
 adminRouter.get('/assets/app.css', (_req, res) => {
   res.type('text/css').send(ADMIN_CSS);
 });
+adminRouter.get('/assets/crm.css', (_req, res) => {
+  res.type('text/css').send(CRM_CSS);
+});
 
 adminRouter.get('/login', (_req, res) => {
   res.type('html').send(LOGIN_HTML);
@@ -77,9 +84,15 @@ adminRouter.use('/api/crm', crmRouter);
 adminRouter.get('/assets/app.js', (_req, res) => {
   res.type('application/javascript').send(ADMIN_JS);
 });
+adminRouter.get('/assets/crm.js', (_req, res) => {
+  res.type('application/javascript').send(`${CRM_CORE_JS}\n${CRM_SETTINGS_JS}`);
+});
 
 adminRouter.get('/', (_req, res) => {
   res.type('html').send(DASHBOARD_HTML);
+});
+adminRouter.get('/crm', (_req, res) => {
+  res.type('html').send(CRM_HTML);
 });
 
 adminRouter.get('/api/conversations', async (req, res) => {
