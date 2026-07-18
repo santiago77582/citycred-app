@@ -1,9 +1,12 @@
-import { readFileSync, readdirSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { newDb } from 'pg-mem';
 
-/** Base PostgreSQL en memoria con todas las migraciones reales del proyecto. */
+/**
+ * Base PostgreSQL en memoria para las pruebas de integración existentes.
+ * Carga el esquema inicial; las pruebas de migraciones adicionales usan una base aislada propia.
+ */
 export type BaseDePruebas = {
   consultar: (sql: string, params?: unknown[]) => Promise<{ rows: Array<Record<string, unknown>>; rowCount: number | null }>;
   reiniciar: () => void;
@@ -14,14 +17,11 @@ export type BaseDePruebas = {
 export async function prepararBaseEnMemoria(): Promise<BaseDePruebas> {
   const { pool } = await import('../../db.js');
   const db = newDb();
-  const sqlDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../../sql');
-  const migrations = readdirSync(sqlDir)
-    .filter((name) => /^\d+_.*\.sql$/i.test(name))
-    .sort((left, right) => left.localeCompare(right));
-
-  for (const migration of migrations) {
-    db.public.none(readFileSync(path.join(sqlDir, migration), 'utf8'));
-  }
+  const rutaSql = path.resolve(
+    path.dirname(fileURLToPath(import.meta.url)),
+    '../../../sql/001_init.sql'
+  );
+  db.public.none(readFileSync(rutaSql, 'utf8'));
 
   const { Pool } = db.adapters.createPg();
   const poolEnMemoria = new Pool();
