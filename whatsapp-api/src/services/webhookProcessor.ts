@@ -17,7 +17,7 @@ import { sanitizeInboundMessage, sanitizeWebhookPayload } from '../security/webh
 import type { MetaWebhookPayload } from '../types/whatsapp.js';
 import { logger } from '../utils/logger.js';
 
-function messageText(message: Record<string, unknown>): string | null {
+export function messageText(message: Record<string, unknown>): string | null {
   const type = String(message.type ?? 'unknown');
   if (type === 'text') return String((message.text as { body?: unknown } | undefined)?.body ?? '');
   if (type === 'button') return String((message.button as { text?: unknown } | undefined)?.text ?? '');
@@ -36,7 +36,7 @@ function messageText(message: Record<string, unknown>): string | null {
   return null;
 }
 
-function mapStatus(status: string): Status {
+export function mapStatus(status: string): Status {
   switch (status) {
     case 'sent': return 'SENT';
     case 'delivered': return 'DELIVERED';
@@ -46,7 +46,7 @@ function mapStatus(status: string): Status {
   }
 }
 
-function attachmentFrom(message: Record<string, unknown>): {
+export function attachmentFrom(message: Record<string, unknown>): {
   mediaId: string | null;
   mediaType: AttachmentType;
   mimeType: string | null;
@@ -107,9 +107,7 @@ export async function processWebhook(payload: MetaWebhookPayload): Promise<void>
 
           await registerInboundActivity(conversation.id);
           const attachment = attachmentFrom(message);
-          if (attachment) {
-            await insertMessageAttachment({ messageId, ...attachment });
-          }
+          if (attachment) await insertMessageAttachment({ messageId, ...attachment });
         }
 
         for (const raw of value.statuses ?? []) {
