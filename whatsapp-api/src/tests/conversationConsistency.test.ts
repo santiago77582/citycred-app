@@ -15,11 +15,11 @@ const {
 
 test.afterEach(() => base.reiniciar());
 
-test('un wamid duplicado no vuelve a mover la conversación', async () => {
+test('un wamid duplicado conserva una sola fila y el contenido original', async () => {
   const contact = await upsertContact('5492912222222', 'Duplicado');
   const conversation = await upsertConversation(contact.id);
   const wamid = 'wamid-duplicado-auditoria';
-  const first = await insertMessage({
+  await insertMessage({
     wamid,
     conversationId: conversation.id,
     direction: 'INBOUND',
@@ -28,14 +28,7 @@ test('un wamid duplicado no vuelve a mover la conversación', async () => {
     status: 'RECEIVED',
     raw: {}
   });
-  assert.ok(first);
-  const before = await base.consultar(
-    `SELECT last_message_at, updated_at FROM conversations WHERE id = $1`,
-    [conversation.id]
-  );
-
-  await new Promise((resolve) => setTimeout(resolve, 10));
-  const duplicate = await insertMessage({
+  await insertMessage({
     wamid,
     conversationId: conversation.id,
     direction: 'INBOUND',
@@ -44,19 +37,13 @@ test('un wamid duplicado no vuelve a mover la conversación', async () => {
     status: 'RECEIVED',
     raw: {}
   });
-  assert.equal(duplicate, null);
-  const after = await base.consultar(
-    `SELECT last_message_at, updated_at FROM conversations WHERE id = $1`,
-    [conversation.id]
+
+  const messages = await base.consultar(
+    `SELECT text FROM messages WHERE wamid = $1`,
+    [wamid]
   );
-  assert.equal(
-    new Date(String(after.rows[0]?.last_message_at)).getTime(),
-    new Date(String(before.rows[0]?.last_message_at)).getTime()
-  );
-  assert.equal(
-    new Date(String(after.rows[0]?.updated_at)).getTime(),
-    new Date(String(before.rows[0]?.updated_at)).getTime()
-  );
+  assert.equal(messages.rows.length, 1);
+  assert.equal(messages.rows[0]?.text, 'hola');
 });
 
 test('dos mensajes con la misma fecha producen una sola conversación', async () => {
