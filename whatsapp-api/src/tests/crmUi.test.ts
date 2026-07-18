@@ -3,12 +3,17 @@ import test from 'node:test';
 import { CRM_ATTACHMENTS_JS } from '../admin/crmClientAttachments.js';
 import { CRM_CORE_JS } from '../admin/crmClientCore.js';
 import { CRM_SETTINGS_JS } from '../admin/crmClientSettings.js';
+import { CRM_TEMPLATES_JS } from '../admin/crmClientTemplates.js';
 import { CRM_HTML } from '../admin/crmPage.js';
 
-test('la página CRM incluye clientes, equipo, etiquetas y respuestas rápidas', () => {
-  for (const id of ['contactsView', 'teamView', 'labelsView', 'quickRepliesView']) {
+test('la página CRM incluye todos los módulos administrativos', () => {
+  for (const id of [
+    'contactsView', 'teamView', 'labelsView', 'quickRepliesView', 'templatesView'
+  ]) {
     assert.match(CRM_HTML, new RegExp(`id="${id}"`));
   }
+  assert.match(CRM_HTML, /Sincronizar con Meta/);
+  assert.match(CRM_HTML, /No envía campañas ni mensajes/);
   assert.match(CRM_HTML, /\/admin\/assets\/crm\.js/);
 });
 
@@ -21,8 +26,11 @@ test('el cliente CRM usa únicamente rutas protegidas del panel', () => {
   assert.match(CRM_ATTACHMENTS_JS, /attachment\.mediaType === 'IMAGE'/);
   assert.match(CRM_ATTACHMENTS_JS, /<audio/);
   assert.match(CRM_ATTACHMENTS_JS, /<video/);
+  assert.match(CRM_TEMPLATES_JS, /\/admin\/api\/templates/);
+  assert.match(CRM_TEMPLATES_JS, /\/sync/);
+  assert.match(CRM_TEMPLATES_JS, /APPROVED/);
   assert.doesNotMatch(
-    CRM_CORE_JS + CRM_SETTINGS_JS + CRM_ATTACHMENTS_JS,
-    /WHATSAPP_ACCESS_TOKEN|META_APP_SECRET/
+    CRM_CORE_JS + CRM_SETTINGS_JS + CRM_ATTACHMENTS_JS + CRM_TEMPLATES_JS,
+    /WHATSAPP_ACCESS_TOKEN|META_APP_SECRET|Bearer /i
   );
 });
