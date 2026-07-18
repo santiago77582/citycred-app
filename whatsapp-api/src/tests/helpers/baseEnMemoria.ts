@@ -28,16 +28,40 @@ export async function prepararBaseEnMemoria(): Promise<BaseDePruebas> {
   const respaldo = db.backup();
   let falloSimulado: ((sql: string) => boolean) | null = null;
 
-  const queryInterceptada = async (...args: unknown[]): Promise<unknown> => {
+  const sqlFromArgs = (args: unknown[]): string => {
     const primero = args[0];
-    const sql = typeof primero === 'string'
+    return typeof primero === 'string'
       ? primero
       : String((primero as { text?: unknown } | undefined)?.text ?? '');
+  };
+
+  const queryInterceptada = async (...args: unknown[]): Promise<unknown> => {
+    const sql = sqlFromArgs(args);
     if (falloSimulado?.(sql)) throw new Error('Fallo de base de datos simulado por la prueba');
-    return (poolEnMemoria as unknown as { query: (...a: unknown[]) => Promise<unknown> }).query(...args);
+    const query = poolEnMemoria.query.bind(poolEnMemoria) as unknown as (
+      ...values: unknown[]
+    ) => Promise<unknown>;
+    return query(...args);
+  };
+
+  const connectInterceptado = async (): Promise<unknown> => {
+    const client = await poolEnMemoria.connect();
+    const originalQuery = client.query.bind(client) as unknown as (
+      ...values: unknown[]
+    ) => Promise<unknown>;
+    const wrappedClient = client as unknown as {
+      query: (...values: unknown[]) => Promise<unknown>;
+    };
+    wrappedClient.query = async (...args: unknown[]) => {
+      const sql = sqlFromArgs(args);
+      if (falloSimulado?.(sql)) throw new Error('Fallo de base de datos simulado por la prueba');
+      return originalQuery(...args);
+    };
+    return client;
   };
 
   (pool as unknown as { query: (...a: unknown[]) => Promise<unknown> }).query = queryInterceptada;
+  (pool as unknown as { connect: () => Promise<unknown> }).connect = connectInterceptado;
 
   return {
     consultar: (sql, params) =>
