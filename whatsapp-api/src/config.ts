@@ -37,6 +37,7 @@ const schema = z.object({
   WHATSAPP_BUSINESS_ACCOUNT_ID: optionalSecret,
   WHATSAPP_VERIFY_TOKEN: optionalSecret,
   META_REQUEST_TIMEOUT_MS: z.coerce.number().int().min(1_000).max(60_000).default(10_000),
+  META_MEDIA_TIMEOUT_MS: z.coerce.number().int().min(10_000).max(600_000).default(120_000),
   META_MAX_RETRIES: z.coerce.number().int().min(0).max(3).default(2),
   META_RETRY_BASE_MS: z.coerce.number().int().min(50).max(5_000).default(250)
 });
@@ -47,7 +48,6 @@ if (!parsed.success) {
   const detalles = parsed.error.issues
     .map((issue) => `- ${issue.path.join('.') || '(raíz)'}: ${issue.message}`)
     .join('\n');
-  // El logger depende de esta configuración, así que acá solo queda la consola.
   console.error(`Configuración inválida:\n${detalles}`);
   process.exit(1);
 }
