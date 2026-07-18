@@ -23,11 +23,16 @@ test('construye variables de encabezado, cuerpo y botones URL', () => {
   assert.match(TEMPLATE_COMPOSER_JS, /parameters:/);
 });
 
-test('bloquea plantillas con encabezado multimedia incompleto', () => {
-  assert.match(TEMPLATE_COMPOSER_JS, /\['IMAGE', 'VIDEO', 'DOCUMENT'\]/);
-  assert.match(TEMPLATE_COMPOSER_JS, /sendButton\.disabled = hasMediaHeader/);
-  assert.match(TEMPLATE_COMPOSER_JS, /necesita un archivo en el encabezado/);
-  assert.match(TEMPLATE_UI_CSS, /\.template-blocked/);
+test('carga encabezados multimedia antes de habilitar el envío', () => {
+  assert.match(TEMPLATE_COMPOSER_JS, /\/header-media/);
+  assert.match(TEMPLATE_COMPOSER_JS, /format === 'IMAGE'/);
+  assert.match(TEMPLATE_COMPOSER_JS, /format === 'VIDEO'/);
+  assert.match(TEMPLATE_COMPOSER_JS, /format === 'DOCUMENT'/);
+  assert.match(TEMPLATE_COMPOSER_JS, /mediaReady = !mediaInfo \|\| Boolean\(headerMedia\)/);
+  assert.match(TEMPLATE_COMPOSER_JS, /mediaParameter\[headerMedia\.kind\] = mediaValue/);
+  assert.match(TEMPLATE_COMPOSER_JS, /mediaValue\.filename = headerMedia\.filename/);
+  assert.match(TEMPLATE_UI_CSS, /\.template-header-upload/);
+  assert.match(TEMPLATE_UI_CSS, /\.template-upload-status\.ready/);
 });
 
 test('muestra la advertencia de costo antes de enviar', () => {
