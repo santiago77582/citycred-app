@@ -4,7 +4,6 @@ on:
   push:
     branches:
       - main
-      - 'agent/**'
     paths:
       - 'whatsapp-api/**'
       - '.github/workflows/whatsapp-api.yml'
@@ -17,7 +16,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: whatsapp-api-${{ github.workflow }}-${{ github.ref }}
+  group: whatsapp-api-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 jobs:
