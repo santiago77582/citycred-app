@@ -22,6 +22,7 @@ import {
   setConversationBotPause
 } from '../repository.js';
 import { normalizePhone } from '../utils/phone.js';
+import { campaignsRouter } from './campaigns.js';
 import { crmRouter } from './crm.js';
 import { mediaRouter } from './media.js';
 import { sendTextAndPersist } from './messages.js';
@@ -87,6 +88,7 @@ adminRouter.use(requireAdminSession);
 adminRouter.use('/api/crm', crmRouter);
 adminRouter.use('/api/media', mediaRouter);
 adminRouter.use('/api/templates', templatesRouter);
+adminRouter.use('/api/campaigns', campaignsRouter);
 
 adminRouter.get('/assets/app.js', (_req, res) => {
   res
