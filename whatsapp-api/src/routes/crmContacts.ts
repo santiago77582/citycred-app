@@ -19,13 +19,6 @@ const statusSchema = z.enum([
   'UNDER_REVIEW', 'APPROVED', 'REJECTED', 'FINALIZED', 'DO_NOT_CONTACT'
 ]);
 const consentSchema = z.enum(['UNKNOWN', 'GRANTED', 'REVOKED']);
-const actorSchema = z.string().uuid().optional();
-
-function actorUserId(req: { headers: Record<string, unknown> }): string | undefined {
-  const raw = req.headers['x-actor-user-id'];
-  const candidate = Array.isArray(raw) ? raw[0] : raw;
-  return actorSchema.parse(candidate);
-}
 
 const querySchema = z.object({
   limit: z.coerce.number().int().min(1).max(500).default(100),
@@ -49,7 +42,6 @@ const assignmentSchema = z.object({
   userId: z.string().uuid().nullable(),
   source: z.enum(['MANUAL', 'AUTOMATIC', 'TRANSFER']).default('MANUAL')
 });
-
 const labelSchema = z.object({ labelId: z.string().uuid() });
 
 crmContactsRouter.get('/', async (req, res) => {
@@ -67,7 +59,7 @@ crmContactsRouter.get('/:waId', async (req, res) => {
 crmContactsRouter.patch('/:waId', async (req, res) => {
   const waId = normalizePhone(String(req.params.waId));
   const patch = patchSchema.parse(req.body);
-  const contact = await updateCrmContact(waId, patch, actorUserId(req));
+  const contact = await updateCrmContact(waId, patch, undefined);
   res.json({ contact });
 });
 
@@ -78,7 +70,7 @@ crmContactsRouter.put('/:waId/assignment', async (req, res) => {
     waId,
     userId: input.userId,
     source: input.source,
-    actorUserId: actorUserId(req)
+    actorUserId: undefined
   });
   res.json({ conversation });
 });
@@ -91,13 +83,13 @@ crmContactsRouter.get('/:waId/labels', async (req, res) => {
 crmContactsRouter.put('/:waId/labels/:labelId', async (req, res) => {
   const waId = normalizePhone(String(req.params.waId));
   const { labelId } = labelSchema.parse(req.params);
-  await setContactLabel({ waId, labelId, assigned: true, actorUserId: actorUserId(req) });
+  await setContactLabel({ waId, labelId, assigned: true, actorUserId: undefined });
   res.status(204).end();
 });
 
 crmContactsRouter.delete('/:waId/labels/:labelId', async (req, res) => {
   const waId = normalizePhone(String(req.params.waId));
   const { labelId } = labelSchema.parse(req.params);
-  await setContactLabel({ waId, labelId, assigned: false, actorUserId: actorUserId(req) });
+  await setContactLabel({ waId, labelId, assigned: false, actorUserId: undefined });
   res.status(204).end();
 });
