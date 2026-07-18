@@ -1,8 +1,10 @@
 openapi: 3.1.0
 info:
   title: WhatsApp CityCred API
-  version: 1.0.0
-  description: API REST que envía y recibe mensajes mediante WhatsApp Cloud API oficial de Meta.
+  version: 1.1.0
+  description: >-
+    API propia de CityCred conectada a WhatsApp Cloud API oficial de Meta.
+    Las campañas permanecen en modo borrador y no tienen ruta de ejecución.
 servers:
   - url: https://tu-dominio.com
 components:
@@ -11,27 +13,40 @@ components:
       type: apiKey
       in: header
       name: x-api-key
+  schemas:
+    Error:
+      type: object
+      properties:
+        error: { type: string }
 security:
   - ApiKey: []
 paths:
   /health:
     get:
       security: []
+      summary: Estado del servicio y de la base
       responses:
         '200': { description: Servicio disponible }
+        '503': { description: Servicio degradado }
   /webhooks/whatsapp:
     get:
       security: []
-      description: Verificación del webhook de Meta
+      summary: Verificación del webhook de Meta
       responses:
         '200': { description: Challenge devuelto }
+        '403': { description: Verificación rechazada }
+        '503': { description: Webhook todavía no configurado }
     post:
       security: []
-      description: Recepción de mensajes y estados de Meta
+      summary: Recepción firmada de mensajes y estados
       responses:
-        '200': { description: Evento aceptado }
+        '200': { description: Evento procesado }
+        '400': { description: JSON inválido }
+        '401': { description: Firma ausente o inválida }
+        '500': { description: Falló el procesamiento; Meta puede reintentar }
   /api/v1/messages/text:
     post:
+      summary: Enviar un mensaje de texto individual
       requestBody:
         required: true
         content:
@@ -41,12 +56,18 @@ paths:
               required: [to, body]
               properties:
                 to: { type: string, example: '5492920123456' }
-                body: { type: string, example: 'Hola, te escribimos de CityCred.' }
+                body: { type: string, maxLength: 4096 }
                 previewUrl: { type: boolean, default: false }
       responses:
-        '201': { description: Mensaje enviado }
+        '201': { description: Meta devolvió un identificador de mensaje }
+        '202': { description: Resultado ambiguo; no debe reintentarse automáticamente }
+        '503': { description: Meta no está configurado }
   /api/v1/messages/template:
     post:
+      summary: Enviar una plantilla sincronizada y aprobada
+      description: >-
+        El nombre y el idioma se verifican contra la base sincronizada antes de
+        contactar a Meta.
       requestBody:
         required: true
         content:
@@ -56,13 +77,17 @@ paths:
               required: [to, templateName]
               properties:
                 to: { type: string }
-                templateName: { type: string }
+                templateName: { type: string, maxLength: 512 }
                 languageCode: { type: string, default: es_AR }
-                components: { type: array, items: {} }
+                components: { type: array, maxItems: 20, items: {} }
       responses:
-        '201': { description: Plantilla enviada }
+        '201': { description: Plantilla aceptada por Meta }
+        '202': { description: Resultado ambiguo; no debe reintentarse automáticamente }
+        '404': { description: Plantilla no sincronizada }
+        '409': { description: Plantilla no aprobada o desactualizada }
   /api/v1/messages/mark-read:
     post:
+      summary: Marcar un mensaje entrante como leído
       requestBody:
         required: true
         content:
@@ -73,17 +98,63 @@ paths:
               properties:
                 messageId: { type: string }
       responses:
-        '200': { description: Mensaje marcado como leído }
+        '200': { description: Solicitud aceptada }
   /api/v1/conversations:
     get:
+      summary: Listar conversaciones
+      parameters:
+        - in: query
+          name: limit
+          schema: { type: integer, minimum: 1, maximum: 200, default: 100 }
       responses:
         '200': { description: Lista de conversaciones }
   /api/v1/conversations/{waId}/messages:
     get:
+      summary: Historial de un contacto
       parameters:
         - in: path
           name: waId
           required: true
           schema: { type: string }
+        - in: query
+          name: limit
+          schema: { type: integer, minimum: 1, maximum: 500, default: 200 }
       responses:
         '200': { description: Historial del contacto }
+  /api/v1/templates:
+    get:
+      summary: Listar plantillas sincronizadas
+      responses:
+        '200': { description: Plantillas y estados }
+  /api/v1/templates/sync:
+    post:
+      summary: Sincronizar la lista completa desde Meta
+      responses:
+        '200': { description: Sincronización completa }
+        '502': { description: Respuesta incompleta o inválida de Meta; no se actualiza la base }
+  /api/v1/campaigns/capabilities:
+    get:
+      summary: Consultar capacidades de campañas
+      responses:
+        '200':
+          description: Informa que la ejecución está desactivada
+  /api/v1/analytics/dashboard:
+    get:
+      summary: Estadísticas operativas de solo lectura
+      parameters:
+        - in: query
+          name: days
+          schema: { type: integer, minimum: 1, maximum: 366, default: 30 }
+      responses:
+        '200': { description: Tablero estadístico }
+  /api/v1/operations/overview:
+    get:
+      summary: Última verificación y alertas operativas abiertas
+      responses:
+        '200': { description: Resumen operativo }
+  /api/v1/operations/check:
+    post:
+      summary: Ejecutar verificaciones internas sin llamar a Meta
+      responses:
+        '201': { description: Verificación guardada }
+        '429': { description: Límite de verificaciones alcanzado }
