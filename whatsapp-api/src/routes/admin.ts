@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import rateLimit from 'express-rate-limit';
 import { z } from 'zod';
+import { CAMPAIGN_UI_CSS } from '../admin/campaignUiStyle.js';
 import { CRM_CORE_JS } from '../admin/crmClientCore.js';
 import { CRM_SETTINGS_JS } from '../admin/crmClientSettings.js';
 import { CRM_HTML } from '../admin/crmPage.js';
@@ -59,7 +60,7 @@ adminRouter.get('/assets/app.css', (_req, res) => {
   res.type('text/css').send(`${ADMIN_CSS}\n${MEDIA_COMPOSER_CSS}\n${TEMPLATE_UI_CSS}`);
 });
 adminRouter.get('/assets/crm.css', (_req, res) => {
-  res.type('text/css').send(`${CRM_CSS}\n${TEMPLATE_UI_CSS}`);
+  res.type('text/css').send(`${CRM_CSS}\n${TEMPLATE_UI_CSS}\n${CAMPAIGN_UI_CSS}`);
 });
 
 adminRouter.get('/login', (_req, res) => {
