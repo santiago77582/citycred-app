@@ -10,6 +10,20 @@ export const TEMPLATE_COMPOSER_JS = String.raw`
   var filteredTemplates = [];
   var selectedTemplate = null;
   var selectedFields = [];
+  var headerMedia = null;
+  var headerUploadBusy = false;
+  var headerPreviewUrl = null;
+
+  var documentMimeByExtension = {
+    txt: 'text/plain', pdf: 'application/pdf', doc: 'application/msword',
+    xls: 'application/vnd.ms-excel', ppt: 'application/vnd.ms-powerpoint',
+    docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    pptx: 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+    odt: 'application/vnd.oasis.opendocument.text',
+    ods: 'application/vnd.oasis.opendocument.spreadsheet',
+    odp: 'application/vnd.oasis.opendocument.presentation'
+  };
 
   var button = document.createElement('button');
   button.type = 'button';
@@ -73,6 +87,28 @@ export const TEMPLATE_COMPOSER_JS = String.raw`
     return data;
   }
 
+  async function uploadTemplateHeader(templateId, file, mimeType) {
+    var response = await fetch(
+      '/admin/api/templates/' + encodeURIComponent(templateId) + '/header-media',
+      {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: {
+          'content-type': mimeType,
+          'x-citycred-filename': encodeURIComponent(file.name)
+        },
+        body: file
+      }
+    );
+    if (response.status === 401) {
+      window.location.href = '/admin/login';
+      throw new Error('Sesión vencida');
+    }
+    var data = await response.json().catch(function () { return {}; });
+    if (!response.ok) throw new Error(data.error || 'No se pudo cargar el encabezado');
+    return data;
+  }
+
   function componentByType(template, type) {
     return (template.components || []).find(function (component) {
       return String(component.type || '').toUpperCase() === type;
@@ -94,16 +130,60 @@ export const TEMPLATE_COMPOSER_JS = String.raw`
     return values.sort(function (left, right) { return left - right; });
   }
 
-  function hasMediaHeader(template) {
+  function mediaHeaderInfo(template) {
     var header = componentByType(template, 'HEADER');
-    if (!header) return false;
+    if (!header) return null;
     var format = String(header.format || 'TEXT').toUpperCase();
-    return ['IMAGE', 'VIDEO', 'DOCUMENT'].indexOf(format) >= 0;
+    if (format === 'IMAGE') {
+      return { format: format, kind: 'image', accept: '.jpg,.jpeg,.png', max: 5000000 };
+    }
+    if (format === 'VIDEO') {
+      return { format: format, kind: 'video', accept: '.mp4,.3gp', max: 16000000 };
+    }
+    if (format === 'DOCUMENT') {
+      return {
+        format: format,
+        kind: 'document',
+        accept: '.txt,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.odt,.ods,.odp',
+        max: 100000000
+      };
+    }
+    return null;
+  }
+
+  function humanSize(bytes) {
+    if (bytes < 1000000) return Math.ceil(bytes / 1000) + ' KB';
+    return (bytes / 1000000).toFixed(bytes >= 10000000 ? 0 : 1) + ' MB';
+  }
+
+  function detectHeaderMime(file, info) {
+    var type = String(file.type || '').toLowerCase();
+    var extension = file.name.toLowerCase().split('.').pop() || '';
+    if (info.kind === 'image') {
+      if (type === 'image/jpeg' || type === 'image/png') return type;
+      if (extension === 'jpg' || extension === 'jpeg') return 'image/jpeg';
+      if (extension === 'png') return 'image/png';
+      return '';
+    }
+    if (info.kind === 'video') {
+      if (type === 'video/mp4' || type === 'video/3gpp') return type;
+      if (extension === 'mp4') return 'video/mp4';
+      if (extension === '3gp') return 'video/3gpp';
+      return '';
+    }
+    return documentMimeByExtension[extension] || (type.indexOf('application/') === 0 || type === 'text/plain' ? type : '');
   }
 
   function templateBody(template) {
     var body = componentByType(template, 'BODY');
     return body && body.text ? String(body.text) : '';
+  }
+
+  function resetHeaderMedia() {
+    headerMedia = null;
+    headerUploadBusy = false;
+    if (headerPreviewUrl) URL.revokeObjectURL(headerPreviewUrl);
+    headerPreviewUrl = null;
   }
 
   function renderList() {
@@ -113,7 +193,8 @@ export const TEMPLATE_COMPOSER_JS = String.raw`
     }
     list.innerHTML = filteredTemplates.map(function (template) {
       var active = selectedTemplate && selectedTemplate.id === template.id ? ' active' : '';
-      var media = hasMediaHeader(template) ? '<span class="template-media-mark">Requiere archivo</span>' : '';
+      var mediaInfo = mediaHeaderInfo(template);
+      var media = mediaInfo ? '<span class="template-media-mark">Encabezado ' + escapeHtml(mediaInfo.format.toLowerCase()) + '</span>' : '';
       return '<button class="template-picker-item' + active + '" data-template-id="' + escapeHtml(template.id) + '" type="button">' +
         '<strong>' + escapeHtml(template.name) + '</strong><span>' + escapeHtml(template.languageCode) +
         ' · ' + escapeHtml(template.category || 'Sin categoría') + '</span>' + media + '</button>';
@@ -123,6 +204,7 @@ export const TEMPLATE_COMPOSER_JS = String.raw`
         selectedTemplate = templates.find(function (template) {
           return template.id === item.dataset.templateId;
         }) || null;
+        resetHeaderMedia();
         renderList();
         renderDetail();
       });
@@ -142,15 +224,12 @@ export const TEMPLATE_COMPOSER_JS = String.raw`
       fields.push({ component: 'body', number: number, label: 'Mensaje — variable ' + number });
     });
     var buttons = componentByType(template, 'BUTTONS');
-    (buttons && Array.isArray(buttons.buttons) ? buttons.buttons : []).forEach(function (button, index) {
-      if (String(button.type || '').toUpperCase() !== 'URL') return;
-      variableNumbers(button.url).forEach(function (number) {
+    (buttons && Array.isArray(buttons.buttons) ? buttons.buttons : []).forEach(function (item, index) {
+      if (String(item.type || '').toUpperCase() !== 'URL') return;
+      variableNumbers(item.url).forEach(function (number) {
         fields.push({
-          component: 'button',
-          subType: 'url',
-          index: index,
-          number: number,
-          label: 'Botón “' + String(button.text || index + 1) + '” — variable ' + number
+          component: 'button', subType: 'url', index: index, number: number,
+          label: 'Botón “' + String(item.text || index + 1) + '” — variable ' + number
         });
       });
     });
@@ -189,7 +268,17 @@ export const TEMPLATE_COMPOSER_JS = String.raw`
       var key = field.component + ':' + (field.index == null ? '' : field.index + ':') + field.number;
       return String(values[key] || '').trim().length > 0;
     });
-    sendButton.disabled = hasMediaHeader(selectedTemplate) || !complete;
+    var mediaInfo = mediaHeaderInfo(selectedTemplate);
+    var mediaReady = !mediaInfo || Boolean(headerMedia);
+    sendButton.disabled = headerUploadBusy || !complete || !mediaReady;
+  }
+
+  function renderHeaderUpload(info) {
+    return '<div class="template-header-upload"><h3>Archivo del encabezado</h3>' +
+      '<p>Formato requerido: ' + escapeHtml(info.format.toLowerCase()) + '. Límite: ' + humanSize(info.max) + '.</p>' +
+      '<label class="template-upload-button">Seleccionar archivo<input id="templateHeaderFile" type="file" accept="' + escapeHtml(info.accept) + '"></label>' +
+      '<div id="templateHeaderUploadStatus" class="template-upload-status">Todavía no seleccionaste un archivo.</div>' +
+      '<div id="templateHeaderLocalPreview" class="template-header-local-preview hidden"></div></div>';
   }
 
   function renderDetail() {
@@ -203,10 +292,10 @@ export const TEMPLATE_COMPOSER_JS = String.raw`
     var body = componentByType(selectedTemplate, 'BODY');
     var footer = componentByType(selectedTemplate, 'FOOTER');
     var buttons = componentByType(selectedTemplate, 'BUTTONS');
-    var mediaBlocked = hasMediaHeader(selectedTemplate);
+    var mediaInfo = mediaHeaderInfo(selectedTemplate);
     var preview = '<div class="template-live-preview">' +
       (header && header.text ? '<div id="templateLiveHeader" class="template-preview-header">' + escapeHtml(header.text) + '</div>' : '') +
-      (mediaBlocked ? '<div class="template-media-header">Encabezado multimedia: ' + escapeHtml(header.format) + '</div>' : '') +
+      (mediaInfo ? '<div class="template-media-header">Encabezado ' + escapeHtml(mediaInfo.format.toLowerCase()) + '</div>' : '') +
       '<div id="templateLiveBody" class="template-preview-body">' + escapeHtml(body && body.text || '').replace(/\n/g, '<br>') + '</div>' +
       (footer && footer.text ? '<div class="template-preview-footer">' + escapeHtml(footer.text) + '</div>' : '') +
       ((buttons && buttons.buttons) ? '<div class="template-buttons">' + buttons.buttons.map(function (item) {
@@ -217,15 +306,77 @@ export const TEMPLATE_COMPOSER_JS = String.raw`
         var key = field.component + ':' + (field.index == null ? '' : field.index + ':') + field.number;
         return '<label>' + escapeHtml(field.label) + '<input data-template-field="' + escapeHtml(key) + '" maxlength="1024" required></label>';
       }).join('') + '</div>' : '<div class="template-no-variables">La plantilla no tiene variables de texto.</div>';
-    var blocked = mediaBlocked
-      ? '<div class="template-blocked">Esta plantilla necesita un archivo en el encabezado. El envío se habilitará en el próximo bloque.</div>'
-      : '';
     detail.innerHTML = '<div class="template-selected-head"><h3>' + escapeHtml(selectedTemplate.name) + '</h3>' +
-      '<span>' + escapeHtml(selectedTemplate.languageCode) + '</span></div>' + preview + fields + blocked;
+      '<span>' + escapeHtml(selectedTemplate.languageCode) + '</span></div>' + preview +
+      (mediaInfo ? renderHeaderUpload(mediaInfo) : '') + fields;
     detail.querySelectorAll('[data-template-field]').forEach(function (input) {
       input.addEventListener('input', updatePreview);
     });
+    var headerFileInput = document.getElementById('templateHeaderFile');
+    if (headerFileInput && mediaInfo) {
+      headerFileInput.addEventListener('change', function () {
+        var file = headerFileInput.files && headerFileInput.files[0];
+        if (file) handleHeaderFile(file, mediaInfo);
+      });
+    }
     updatePreview();
+  }
+
+  async function handleHeaderFile(file, info) {
+    var status = document.getElementById('templateHeaderUploadStatus');
+    var preview = document.getElementById('templateHeaderLocalPreview');
+    var mime = detectHeaderMime(file, info);
+    resetHeaderMedia();
+    if (!mime) {
+      status.textContent = 'El formato elegido no coincide con el encabezado requerido.';
+      status.className = 'template-upload-status error';
+      updatePreview();
+      return;
+    }
+    if (file.size <= 0 || file.size > info.max) {
+      status.textContent = file.size <= 0
+        ? 'El archivo está vacío.'
+        : 'El archivo supera el límite de ' + humanSize(info.max) + '.';
+      status.className = 'template-upload-status error';
+      updatePreview();
+      return;
+    }
+
+    headerUploadBusy = true;
+    status.textContent = 'Subiendo archivo a Meta…';
+    status.className = 'template-upload-status loading';
+    preview.classList.add('hidden');
+    sendButton.disabled = true;
+    try {
+      var data = await uploadTemplateHeader(selectedTemplate.id, file, mime);
+      headerMedia = {
+        mediaId: data.mediaId,
+        kind: data.kind,
+        filename: data.filename,
+        mimeType: data.mimeType
+      };
+      status.textContent = 'Archivo listo: ' + file.name + ' · ' + humanSize(file.size);
+      status.className = 'template-upload-status ready';
+      preview.replaceChildren();
+      if (info.kind === 'image' || info.kind === 'video') {
+        headerPreviewUrl = URL.createObjectURL(file);
+        var element = document.createElement(info.kind === 'image' ? 'img' : 'video');
+        element.src = headerPreviewUrl;
+        if (info.kind === 'video') element.controls = true;
+        preview.appendChild(element);
+      } else {
+        preview.textContent = file.name;
+      }
+      preview.classList.remove('hidden');
+    } catch (error) {
+      headerMedia = null;
+      status.textContent = error.message || 'No se pudo cargar el encabezado.';
+      status.className = 'template-upload-status error';
+      showToast(status.textContent, true);
+    } finally {
+      headerUploadBusy = false;
+      updatePreview();
+    }
   }
 
   function buildComponents() {
@@ -242,6 +393,13 @@ export const TEMPLATE_COMPOSER_JS = String.raw`
       }
     });
     var components = [];
+    if (headerMedia) {
+      var mediaValue = { id: headerMedia.mediaId };
+      if (headerMedia.kind === 'document') mediaValue.filename = headerMedia.filename;
+      var mediaParameter = { type: headerMedia.kind };
+      mediaParameter[headerMedia.kind] = mediaValue;
+      components.push({ type: 'header', parameters: [mediaParameter] });
+    }
     ['header', 'body'].forEach(function (type) {
       if (!grouped[type].length) return;
       grouped[type].sort(function (left, right) { return left.number - right.number; });
@@ -262,6 +420,7 @@ export const TEMPLATE_COMPOSER_JS = String.raw`
     overlay.classList.add('hidden');
     selectedTemplate = null;
     selectedFields = [];
+    resetHeaderMedia();
     searchInput.value = '';
     detail.innerHTML = '<div class="empty">Elegí una plantilla.</div>';
     sendButton.disabled = true;
