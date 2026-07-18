@@ -7,7 +7,7 @@ export const CRM_CORE_JS = String.raw`
     APPROVED: 'Aprobado', REJECTED: 'Rechazado', FINALIZED: 'Finalizado',
     DO_NOT_CONTACT: 'No contactar'
   };
-  var state = { contacts: [], users: [], selected: null, loaders: {} };
+  var state = { contacts: [], users: [], selected: null, selectedLabels: [], loaders: {}, contactHooks: [] };
   var toast = document.getElementById('toast');
 
   function showToast(message, error) {
@@ -70,8 +70,9 @@ export const CRM_CORE_JS = String.raw`
     });
   }
 
-  function fillContact(contact) {
+  function fillContact(contact, labels) {
     state.selected = contact;
+    state.selectedLabels = labels || [];
     document.getElementById('contactForm').classList.remove('hidden');
     document.getElementById('contactTitle').textContent = contact.profile_name || contact.phone;
     document.getElementById('contactPhone').textContent = contact.phone;
@@ -89,15 +90,16 @@ export const CRM_CORE_JS = String.raw`
       return user.active;
     }).map(function (user) { return { value: user.id, label: user.display_name }; }));
     setOptions(document.getElementById('assignedUser'), users, contact.assigned_user_id);
-    document.getElementById('openChat').href = '/admin?waId=' + encodeURIComponent(contact.wa_id);
+    document.getElementById('openChat').href = '/admin';
     renderContacts();
+    state.contactHooks.forEach(function (hook) { hook(contact, state.selectedLabels); });
   }
 
   async function selectContact(waId) {
     try {
       if (!state.users.length) await loadUsers();
       var data = await api('/contacts/' + encodeURIComponent(waId));
-      fillContact(data.contact);
+      fillContact(data.contact, data.labels || []);
     } catch (error) { showToast(error.message, true); }
   }
 
@@ -126,6 +128,7 @@ export const CRM_CORE_JS = String.raw`
     event.preventDefault();
     if (!state.selected) return;
     try {
+      var waId = state.selected.wa_id;
       var quotaRaw = document.getElementById('availableQuota').value;
       var patch = {
         profileName: document.getElementById('profileName').value.trim() || null,
@@ -139,16 +142,16 @@ export const CRM_CORE_JS = String.raw`
       };
       var currentAssignment = state.selected.assigned_user_id || '';
       var nextAssignment = document.getElementById('assignedUser').value;
-      var data = await api('/contacts/' + encodeURIComponent(state.selected.wa_id), {
+      await api('/contacts/' + encodeURIComponent(waId), {
         method: 'PATCH', body: JSON.stringify(patch)
       });
       if (currentAssignment !== nextAssignment) {
-        await api('/contacts/' + encodeURIComponent(state.selected.wa_id) + '/assignment', {
+        await api('/contacts/' + encodeURIComponent(waId) + '/assignment', {
           method: 'PUT', body: JSON.stringify({ userId: nextAssignment || null, source: 'MANUAL' })
         });
-        data.contact.assigned_user_id = nextAssignment || null;
       }
-      fillContact(data.contact);
+      var refreshed = await api('/contacts/' + encodeURIComponent(waId));
+      fillContact(refreshed.contact, refreshed.labels || []);
       await loadContacts();
       showToast('Ficha guardada');
     } catch (error) { showToast(error.message, true); }
@@ -178,7 +181,8 @@ export const CRM_CORE_JS = String.raw`
 
   window.CityCredCrm = {
     api: api, text: text, showToast: showToast, state: state,
-    registerLoader: function (name, loader) { state.loaders[name] = loader; }
+    registerLoader: function (name, loader) { state.loaders[name] = loader; },
+    registerContactHook: function (hook) { state.contactHooks.push(hook); }
   };
   Promise.all([loadUsers(), loadContacts()]).catch(function (error) { showToast(error.message, true); });
 })();
