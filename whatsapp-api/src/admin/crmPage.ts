@@ -23,6 +23,7 @@ export const CRM_HTML = String.raw`<!doctype html>
       <button class="menu-item" data-view="labels" type="button">Etiquetas</button>
       <button class="menu-item" data-view="quickReplies" type="button">Respuestas rápidas</button>
       <button class="menu-item" data-view="templates" type="button">Plantillas de Meta</button>
+      <button class="menu-item" data-view="campaigns" type="button">Campañas</button>
     </aside>
 
     <section class="content">
@@ -135,6 +136,61 @@ export const CRM_HTML = String.raw`<!doctype html>
         </div>
         <div id="templateSummary" class="template-summary"></div>
         <div id="templateList" class="template-list"></div>
+      </section>
+
+      <section id="campaignsView" class="view hidden">
+        <div class="view-head">
+          <div>
+            <h1>Campañas</h1>
+            <p>Borradores, segmentación y vista previa de destinatarios.</p>
+          </div>
+          <button id="newCampaign" class="primary" type="button">Nuevo borrador</button>
+        </div>
+        <div class="campaign-lock-notice">
+          <strong>Envío desactivado.</strong> Esta pantalla no puede ejecutar campañas. Solo guarda borradores y calcula la audiencia.
+        </div>
+
+        <div class="campaign-layout">
+          <section class="campaign-sidebar">
+            <div id="campaignList" class="campaign-list"></div>
+          </section>
+
+          <section class="campaign-workspace">
+            <form id="campaignForm" class="campaign-form hidden">
+              <input id="campaignId" type="hidden">
+              <div class="campaign-form-head">
+                <div><h2 id="campaignFormTitle">Nuevo borrador</h2><p>Todos los filtros se vuelven a validar al generar la vista previa.</p></div>
+                <button id="closeCampaignForm" class="ghost" type="button">Cerrar</button>
+              </div>
+              <div class="form-grid">
+                <label>Nombre de la campaña<input id="campaignName" maxlength="150" required></label>
+                <label>Plantilla aprobada<select id="campaignTemplate" required></select></label>
+                <label class="wide">Buscar dentro de clientes<input id="campaignSearch" maxlength="200" placeholder="Nombre, teléfono, DNI o entidad"></label>
+                <label class="wide">Entidades específicas<input id="campaignEntities" maxlength="1000" placeholder="Separadas por coma, por ejemplo: Educación RN, Ejército"></label>
+              </div>
+              <fieldset class="campaign-fieldset">
+                <legend>Estados comerciales</legend>
+                <div id="campaignStatuses" class="campaign-check-grid"></div>
+              </fieldset>
+              <fieldset class="campaign-fieldset">
+                <legend>Etiquetas</legend>
+                <div id="campaignLabels" class="campaign-check-grid"></div>
+              </fieldset>
+              <section id="campaignVariables" class="campaign-variables hidden">
+                <h3>Valores fijos de la plantilla</h3>
+                <p>Se usarían iguales para toda la audiencia. El envío sigue desactivado.</p>
+                <div id="campaignVariableFields" class="form-grid"></div>
+              </section>
+              <div class="campaign-form-actions">
+                <button id="saveCampaign" class="primary" type="submit">Guardar borrador</button>
+              </div>
+            </form>
+
+            <section id="campaignDetail" class="campaign-detail">
+              <div class="empty">Elegí una campaña o creá un nuevo borrador.</div>
+            </section>
+          </section>
+        </div>
       </section>
     </section>
   </main>
