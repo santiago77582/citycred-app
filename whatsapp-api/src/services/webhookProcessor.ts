@@ -1,3 +1,4 @@
+import { recordMetaAccountChanges } from '../metaAccountEventsRepository.js';
 import {
   insertMessageAttachment,
   recordMessageMilestone,
@@ -20,6 +21,10 @@ export async function processWebhook(payload: MetaWebhookPayload): Promise<void>
   const safePayload = sanitizeWebhookPayload(payload);
   const eventId = await createWebhookEvent(safePayload);
   try {
+    await recordMetaAccountChanges(
+      safePayload as unknown as Record<string, unknown>
+    );
+
     for (const entry of safePayload.entry ?? []) {
       for (const change of entry.changes ?? []) {
         const value = change.value;
