@@ -1,7 +1,9 @@
 import { Router } from 'express';
 import rateLimit from 'express-rate-limit';
 import { z } from 'zod';
+import { ANALYTICS_UI_CSS } from '../admin/analyticsUiStyle.js';
 import { CAMPAIGN_UI_CSS } from '../admin/campaignUiStyle.js';
+import { CRM_ANALYTICS_JS } from '../admin/crmClientAnalytics.js';
 import { CRM_CORE_JS } from '../admin/crmClientCore.js';
 import { CRM_SETTINGS_JS } from '../admin/crmClientSettings.js';
 import { CRM_HTML } from '../admin/crmPage.js';
@@ -23,6 +25,7 @@ import {
   setConversationBotPause
 } from '../repository.js';
 import { normalizePhone } from '../utils/phone.js';
+import { analyticsRouter } from './analytics.js';
 import { campaignsRouter } from './campaigns.js';
 import { crmRouter } from './crm.js';
 import { mediaRouter } from './media.js';
@@ -60,7 +63,9 @@ adminRouter.get('/assets/app.css', (_req, res) => {
   res.type('text/css').send(`${ADMIN_CSS}\n${MEDIA_COMPOSER_CSS}\n${TEMPLATE_UI_CSS}`);
 });
 adminRouter.get('/assets/crm.css', (_req, res) => {
-  res.type('text/css').send(`${CRM_CSS}\n${TEMPLATE_UI_CSS}\n${CAMPAIGN_UI_CSS}`);
+  res
+    .type('text/css')
+    .send(`${CRM_CSS}\n${TEMPLATE_UI_CSS}\n${CAMPAIGN_UI_CSS}\n${ANALYTICS_UI_CSS}`);
 });
 
 adminRouter.get('/login', (_req, res) => {
@@ -90,6 +95,7 @@ adminRouter.use('/api/crm', crmRouter);
 adminRouter.use('/api/media', mediaRouter);
 adminRouter.use('/api/templates', templatesRouter);
 adminRouter.use('/api/campaigns', campaignsRouter);
+adminRouter.use('/api/analytics', analyticsRouter);
 
 adminRouter.get('/assets/app.js', (_req, res) => {
   res
@@ -97,7 +103,9 @@ adminRouter.get('/assets/app.js', (_req, res) => {
     .send(`${ADMIN_JS}\n${MEDIA_COMPOSER_JS}\n${TEMPLATE_COMPOSER_JS}`);
 });
 adminRouter.get('/assets/crm.js', (_req, res) => {
-  res.type('application/javascript').send(`${CRM_CORE_JS}\n${CRM_SETTINGS_JS}`);
+  res
+    .type('application/javascript')
+    .send(`${CRM_CORE_JS}\n${CRM_SETTINGS_JS}\n${CRM_ANALYTICS_JS}`);
 });
 
 adminRouter.get('/', (_req, res) => {
