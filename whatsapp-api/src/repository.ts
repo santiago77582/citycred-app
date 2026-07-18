@@ -80,6 +80,20 @@ function firstRow<T>(rows: T[]): T {
   return row;
 }
 
+async function advanceConversationLastMessage(
+  conversationId: string,
+  createdAt: string
+): Promise<void> {
+  await pool.query(
+    `UPDATE conversations
+     SET last_message_at = $2,
+         updated_at = NOW()
+     WHERE id = $1
+       AND last_message_at < $2`,
+    [conversationId, createdAt]
+  );
+}
+
 export async function upsertContact(waId: string, profileName?: string | null): Promise<ContactRow> {
   const result = await pool.query<ContactRow>(
     `INSERT INTO contacts (id, wa_id, phone, profile_name)
@@ -165,15 +179,26 @@ export async function insertMessage(params: {
     ]
   );
   const inserted = result.rows[0];
-  if (!inserted) return null;
+  if (inserted) {
+    await advanceConversationLastMessage(params.conversationId, inserted.created_at);
+    return inserted.id;
+  }
 
-  await pool.query(
-    `UPDATE conversations
-     SET last_message_at = $2, updated_at = NOW()
-     WHERE id = $1`,
-    [params.conversationId, inserted.created_at]
-  );
-  return inserted.id;
+  if (params.wamid) {
+    const existing = await pool.query<{
+      conversation_id: string;
+      created_at: string;
+    }>(
+      `SELECT conversation_id, created_at
+       FROM messages
+       WHERE wamid = $1
+       LIMIT 1`,
+      [params.wamid]
+    );
+    const row = existing.rows[0];
+    if (row) await advanceConversationLastMessage(row.conversation_id, row.created_at);
+  }
+  return null;
 }
 
 export async function updateMessageStatus(params: {
