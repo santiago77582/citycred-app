@@ -15,7 +15,7 @@ const {
 
 test.afterEach(() => base.reiniciar());
 
-test('un wamid duplicado conserva una sola fila y el contenido original', async () => {
+test('un wamid duplicado conserva una sola fila y repara la fecha de la bandeja', async () => {
   const contact = await upsertContact('5492912222222', 'Duplicado');
   const conversation = await upsertConversation(contact.id);
   const wamid = 'wamid-duplicado-auditoria';
@@ -28,6 +28,19 @@ test('un wamid duplicado conserva una sola fila y el contenido original', async 
     status: 'RECEIVED',
     raw: {}
   });
+
+  const stored = await base.consultar(
+    `SELECT created_at FROM messages WHERE wamid = $1`,
+    [wamid]
+  );
+  const messageCreatedAt = new Date(String(stored.rows[0]?.created_at)).getTime();
+  await base.consultar(
+    `UPDATE conversations
+     SET last_message_at = '2020-01-01T00:00:00.000Z'
+     WHERE id = $1`,
+    [conversation.id]
+  );
+
   await insertMessage({
     wamid,
     conversationId: conversation.id,
@@ -44,6 +57,15 @@ test('un wamid duplicado conserva una sola fila y el contenido original', async 
   );
   assert.equal(messages.rows.length, 1);
   assert.equal(messages.rows[0]?.text, 'hola');
+
+  const repaired = await base.consultar(
+    `SELECT last_message_at FROM conversations WHERE id = $1`,
+    [conversation.id]
+  );
+  assert.equal(
+    new Date(String(repaired.rows[0]?.last_message_at)).getTime(),
+    messageCreatedAt
+  );
 });
 
 test('dos mensajes con la misma fecha producen una sola conversación', async () => {
