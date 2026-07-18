@@ -7,6 +7,7 @@ import { requireApiKey } from './middleware/apiKey.js';
 import { errorHandler } from './middleware/errorHandler.js';
 import { adminRouter } from './routes/admin.js';
 import { conversationsRouter } from './routes/conversations.js';
+import { crmRouter } from './routes/crm.js';
 import { healthRouter } from './routes/health.js';
 import { messagesRouter } from './routes/messages.js';
 import { webhooksRouter } from './routes/webhooks.js';
@@ -15,7 +16,6 @@ import { logger, sanitizeRequestUrl } from './utils/logger.js';
 export function createApp(): express.Express {
   const app = express();
 
-  // Detrás de Render/Cloudflare hay exactamente un proxy de confianza.
   app.set('trust proxy', 1);
   app.disable('x-powered-by');
   app.use(helmet());
@@ -38,7 +38,6 @@ export function createApp(): express.Express {
     express.json({
       limit: '1mb',
       verify: (req, _res, buf) => {
-        // Meta firma el cuerpo crudo; se guarda para validar X-Hub-Signature-256.
         (req as { rawBody?: Buffer }).rawBody = buf;
       }
     })
@@ -59,6 +58,7 @@ export function createApp(): express.Express {
   app.use('/api/v1', apiLimiter, requireApiKey);
   app.use('/api/v1/messages', messagesRouter);
   app.use('/api/v1/conversations', conversationsRouter);
+  app.use('/api/v1/crm', crmRouter);
 
   app.use((_req, res) => {
     res.status(404).json({ error: 'Ruta no encontrada.' });
