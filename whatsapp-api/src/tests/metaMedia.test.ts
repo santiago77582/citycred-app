@@ -1,18 +1,43 @@
 import assert from 'node:assert/strict';
+import { writeFile, unlink } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import test from 'node:test';
 import { applyTestEnv } from './helpers/entornoPruebas.js';
 
 applyTestEnv({
   META_GRAPH_VERSION: 'v23.0',
   WHATSAPP_ACCESS_TOKEN: 'token-solo-pruebas',
-  WHATSAPP_PHONE_NUMBER_ID: '123456789'
+  WHATSAPP_PHONE_NUMBER_ID: '123456789',
+  META_MEDIA_TIMEOUT_MS: '120000'
 });
 
 const {
   isAllowedMetaMediaUrl,
   openMetaMediaDownload,
-  retrieveMetaMediaInfo
+  resolveOutboundMediaSpec,
+  retrieveMetaMediaInfo,
+  sendMetaMediaMessage,
+  uploadMetaMedia
 } = await import('../services/metaMedia.js');
+
+test('clasifica formatos y aplica los límites oficiales', () => {
+  const image = resolveOutboundMediaSpec('image/jpeg');
+  assert.equal(image.kind, 'image');
+  assert.equal(image.maxBytes, 5_000_000);
+  assert.equal(image.allowsCaption, true);
+
+  const audio = resolveOutboundMediaSpec('audio/ogg; codecs=opus');
+  assert.equal(audio.kind, 'audio');
+  assert.equal(audio.maxBytes, 16_000_000);
+  assert.equal(audio.allowsCaption, false);
+
+  const document = resolveOutboundMediaSpec('application/pdf');
+  assert.equal(document.kind, 'document');
+  assert.equal(document.maxBytes, 100_000_000);
+
+  assert.throws(() => resolveOutboundMediaSpec('application/x-msdownload'), /no está permitido/i);
+});
 
 test('solo permite direcciones HTTPS de infraestructura autorizada', () => {
   assert.equal(isAllowedMetaMediaUrl('https://lookaside.fbsbx.com/archivo'), true);
@@ -59,6 +84,62 @@ test('consulta el archivo por ID y descarga el contenido con autorización del s
     }
   } finally {
     globalThis.fetch = originalFetch;
+  }
+});
+
+test('sube un archivo y luego envía el media_id sin exponer el contenido en JSON', async () => {
+  const originalFetch = globalThis.fetch;
+  const path = join(tmpdir(), `citycred-meta-media-${Date.now()}.jpg`);
+  await writeFile(path, new Uint8Array([1, 2, 3]));
+  const calls: Array<{ url: string; init?: RequestInit }> = [];
+  globalThis.fetch = async (input, init) => {
+    const url = String(input);
+    calls.push({ url, init });
+    if (calls.length === 1) {
+      const form = init?.body as FormData;
+      assert.equal(form.get('messaging_product'), 'whatsapp');
+      const file = form.get('file');
+      assert.ok(file instanceof Blob);
+      return new Response(JSON.stringify({ id: 'media-upload-1' }), {
+        status: 200,
+        headers: { 'content-type': 'application/json' }
+      });
+    }
+    const payload = JSON.parse(String(init?.body));
+    assert.equal(payload.type, 'image');
+    assert.equal(payload.image.id, 'media-upload-1');
+    assert.equal(payload.image.caption, 'Comprobante');
+    assert.equal(payload.to, '5492910000000');
+    return new Response(JSON.stringify({ messages: [{ id: 'wamid.media.1' }] }), {
+      status: 200,
+      headers: { 'content-type': 'application/json' }
+    });
+  };
+
+  try {
+    const upload = await uploadMetaMedia({
+      filePath: path,
+      mimeType: 'image/jpeg',
+      filename: 'comprobante.jpg'
+    });
+    assert.equal(upload.id, 'media-upload-1');
+    const sent = await sendMetaMediaMessage({
+      to: '5492910000000',
+      kind: 'image',
+      mediaId: upload.id,
+      caption: 'Comprobante',
+      filename: null
+    });
+    assert.equal(sent.messages?.[0]?.id, 'wamid.media.1');
+    assert.match(calls[0]?.url ?? '', /\/v23\.0\/123456789\/media$/);
+    assert.match(calls[1]?.url ?? '', /\/v23\.0\/123456789\/messages$/);
+    for (const call of calls) {
+      const headers = new Headers(call.init?.headers);
+      assert.equal(headers.get('authorization'), 'Bearer token-solo-pruebas');
+    }
+  } finally {
+    globalThis.fetch = originalFetch;
+    await unlink(path).catch(() => undefined);
   }
 });
 
