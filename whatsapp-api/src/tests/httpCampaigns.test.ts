@@ -75,7 +75,7 @@ test('crea un borrador y genera vista previa sin enviar mensajes', async () => {
       body: JSON.stringify({
         name: 'Campaña API segura',
         templateId,
-        audienceFilter: { entities: ['Educación RN'] }
+        audienceFilter: { search: 'Cliente API' }
       })
     });
     assert.equal(created.status, 201);
