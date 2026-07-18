@@ -144,46 +144,36 @@ export async function insertMessage(params: {
   errorCode?: string | null;
   errorMessage?: string | null;
 }): Promise<string | null> {
-  const client = await pool.connect();
-  try {
-    await client.query('BEGIN');
-    const result = await client.query<{ id: string; created_at: string }>(
-      `INSERT INTO messages (
-         id, wamid, conversation_id, direction, type, text, status, error_code, error_message, raw
-       )
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10::jsonb)
-       ON CONFLICT (wamid) DO NOTHING
-       RETURNING id, created_at`,
-      [
-        randomUUID(),
-        params.wamid,
-        params.conversationId,
-        params.direction,
-        params.type,
-        params.text,
-        params.status,
-        params.errorCode ?? null,
-        params.errorMessage ?? null,
-        JSON.stringify(params.raw ?? null)
-      ]
-    );
-    const inserted = result.rows[0];
-    if (inserted) {
-      await client.query(
-        `UPDATE conversations
-         SET last_message_at = $2, updated_at = NOW()
-         WHERE id = $1`,
-        [params.conversationId, inserted.created_at]
-      );
-    }
-    await client.query('COMMIT');
-    return inserted?.id ?? null;
-  } catch (error) {
-    await client.query('ROLLBACK').catch(() => undefined);
-    throw error;
-  } finally {
-    client.release();
-  }
+  const result = await pool.query<{ id: string; created_at: string }>(
+    `INSERT INTO messages (
+       id, wamid, conversation_id, direction, type, text, status, error_code, error_message, raw
+     )
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10::jsonb)
+     ON CONFLICT (wamid) DO NOTHING
+     RETURNING id, created_at`,
+    [
+      randomUUID(),
+      params.wamid,
+      params.conversationId,
+      params.direction,
+      params.type,
+      params.text,
+      params.status,
+      params.errorCode ?? null,
+      params.errorMessage ?? null,
+      JSON.stringify(params.raw ?? null)
+    ]
+  );
+  const inserted = result.rows[0];
+  if (!inserted) return null;
+
+  await pool.query(
+    `UPDATE conversations
+     SET last_message_at = $2, updated_at = NOW()
+     WHERE id = $1`,
+    [params.conversationId, inserted.created_at]
+  );
+  return inserted.id;
 }
 
 export async function updateMessageStatus(params: {
