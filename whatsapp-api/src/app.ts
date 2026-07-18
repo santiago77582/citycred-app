@@ -13,6 +13,7 @@ import { crmRouter } from './routes/crm.js';
 import { healthRouter } from './routes/health.js';
 import { mediaRouter } from './routes/media.js';
 import { messagesRouter } from './routes/messages.js';
+import { operationsRouter } from './routes/operations.js';
 import { templatesRouter } from './routes/templates.js';
 import { webhooksRouter } from './routes/webhooks.js';
 import { logger, sanitizeRequestUrl } from './utils/logger.js';
@@ -62,6 +63,7 @@ export function createApp(): express.Express {
   app.use('/api/v1/templates', templatesRouter);
   app.use('/api/v1/campaigns', campaignsRouter);
   app.use('/api/v1/analytics', analyticsRouter);
+  app.use('/api/v1/operations', operationsRouter);
 
   app.use((_req, res) => {
     res.status(404).json({ error: 'Ruta no encontrada.' });
