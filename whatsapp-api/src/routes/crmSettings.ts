@@ -7,6 +7,7 @@ import {
   listQuickReplies
 } from '../crm/catalogRepository.js';
 import { createUser, listUsers, updateUser } from '../crm/teamRepository.js';
+import { requirePanelRole } from '../middleware/adminSession.js';
 
 export const crmSettingsRouter = Router();
 
@@ -42,35 +43,68 @@ crmSettingsRouter.get('/labels', async (_req, res) => {
   res.json({ labels: await listLabels() });
 });
 
-crmSettingsRouter.post('/labels', async (req, res) => {
-  const input = labelSchema.parse(req.body);
-  const label = await createLabel({ ...input, actorUserId: undefined });
-  res.status(201).json({ label });
-});
+crmSettingsRouter.post(
+  '/labels',
+  requirePanelRole('ADMIN', 'SUPERVISOR'),
+  async (req, res) => {
+    const input = labelSchema.parse(req.body);
+    const label = await createLabel({
+      ...input,
+      actorUserId: req.adminUser?.userId ?? undefined
+    });
+    res.status(201).json({ label });
+  }
+);
 
 crmSettingsRouter.get('/quick-replies', async (_req, res) => {
   res.json({ quickReplies: await listQuickReplies() });
 });
 
-crmSettingsRouter.post('/quick-replies', async (req, res) => {
-  const input = quickReplySchema.parse(req.body);
-  const quickReply = await createQuickReply({ ...input, actorUserId: undefined });
-  res.status(201).json({ quickReply });
-});
+crmSettingsRouter.post(
+  '/quick-replies',
+  requirePanelRole('ADMIN', 'SUPERVISOR'),
+  async (req, res) => {
+    const input = quickReplySchema.parse(req.body);
+    const quickReply = await createQuickReply({
+      ...input,
+      actorUserId: req.adminUser?.userId ?? undefined
+    });
+    res.status(201).json({ quickReply });
+  }
+);
 
-crmSettingsRouter.get('/users', async (_req, res) => {
-  res.json({ users: await listUsers() });
-});
+crmSettingsRouter.get(
+  '/users',
+  requirePanelRole('ADMIN', 'SUPERVISOR'),
+  async (_req, res) => {
+    res.json({ users: await listUsers() });
+  }
+);
 
-crmSettingsRouter.post('/users', async (req, res) => {
-  const input = createUserSchema.parse(req.body);
-  const user = await createUser({ ...input, actorUserId: undefined });
-  res.status(201).json({ user });
-});
+crmSettingsRouter.post(
+  '/users',
+  requirePanelRole('ADMIN'),
+  async (req, res) => {
+    const input = createUserSchema.parse(req.body);
+    const user = await createUser({
+      ...input,
+      actorUserId: req.adminUser?.userId ?? undefined
+    });
+    res.status(201).json({ user });
+  }
+);
 
-crmSettingsRouter.patch('/users/:userId', async (req, res) => {
-  const { userId } = userParamsSchema.parse(req.params);
-  const input = updateUserSchema.parse(req.body);
-  const user = await updateUser({ userId, ...input, actorUserId: undefined });
-  res.json({ user });
-});
+crmSettingsRouter.patch(
+  '/users/:userId',
+  requirePanelRole('ADMIN'),
+  async (req, res) => {
+    const { userId } = userParamsSchema.parse(req.params);
+    const input = updateUserSchema.parse(req.body);
+    const user = await updateUser({
+      userId,
+      ...input,
+      actorUserId: req.adminUser?.userId ?? undefined
+    });
+    res.json({ user });
+  }
+);
