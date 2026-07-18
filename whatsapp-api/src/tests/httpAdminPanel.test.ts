@@ -42,14 +42,14 @@ test('redirige al login cuando no hay sesión', async () => {
   assert.equal(response.headers.get('location'), '/admin/login');
 });
 
-test('rechaza una contraseña incorrecta', async () => {
+test('rechaza una contraseña incorrecta sin revelar si el correo existe', async () => {
   const response = await fetch(`${baseUrl}/admin/login`, {
     method: 'POST',
     headers: { 'content-type': 'application/x-www-form-urlencoded' },
     body: new URLSearchParams({ password: 'incorrecta-incorrecta' })
   });
   assert.equal(response.status, 401);
-  assert.match(await response.text(), /Contraseña incorrecta/);
+  assert.match(await response.text(), /Correo o contraseña incorrectos/);
 });
 
 test('abre el panel con sesión firmada', async () => {
