@@ -13,6 +13,7 @@ import { campaignsRouter } from './routes/campaigns.js';
 import { commerceRouter } from './routes/commerce.js';
 import { conversationsRouter } from './routes/conversations.js';
 import { crmRouter } from './routes/crm.js';
+import { flowsRouter } from './routes/flows.js';
 import { healthRouter } from './routes/health.js';
 import { mediaRouter } from './routes/media.js';
 import { messagesRouter } from './routes/messages.js';
@@ -46,7 +47,7 @@ export function createApp(): express.Express {
   }));
   app.use(express.urlencoded({ extended: false, limit: '16kb' }));
   app.use(express.json({
-    limit: '1mb',
+    limit: '2mb',
     verify: (req, _res, buf) => {
       (req as { rawBody?: Buffer }).rawBody = buf;
     }
@@ -75,6 +76,7 @@ export function createApp(): express.Express {
   app.use('/api/v1/operations', operationsRouter);
   app.use('/api/v1/account', accountRouter);
   app.use('/api/v1/commerce', commerceRouter);
+  app.use('/api/v1/flows', flowsRouter);
 
   app.use((_req, res) => {
     res.status(404).json({ error: 'Ruta no encontrada.' });
