@@ -1,3 +1,5 @@
+import { CRM_LABELS_JS } from './crmClientLabels.js';
+
 export const CRM_SETTINGS_JS = String.raw`
 (function () {
   'use strict';
@@ -115,4 +117,4 @@ export const CRM_SETTINGS_JS = String.raw`
   crm.registerLoader('labels', loadLabels);
   crm.registerLoader('quickReplies', loadQuickReplies);
 })();
-`;
+` + '\n' + CRM_LABELS_JS;
