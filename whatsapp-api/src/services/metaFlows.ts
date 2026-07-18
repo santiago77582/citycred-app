@@ -1,7 +1,7 @@
 import { config } from '../config.js';
 import { AppError } from '../errors/AppError.js';
 
-const MAX_FLOW_JSON_BYTES = 2 * 1024 * 1024;
+const MAX_FLOW_JSON_BYTES = 900 * 1024;
 const MAX_FLOW_PAGES = 100;
 
 export const FLOW_CATEGORIES = [
@@ -207,7 +207,7 @@ export async function uploadMetaFlowJson(
   const serialized = JSON.stringify(flowJson);
   const bytes = Buffer.byteLength(serialized, 'utf8');
   if (bytes > MAX_FLOW_JSON_BYTES) {
-    throw new AppError('El JSON del Flow supera el tamaño máximo interno de 2 MB.', 413);
+    throw new AppError('El JSON del Flow supera el máximo seguro de 900 KB.', 413);
   }
   const form = new FormData();
   form.set('file', new Blob([serialized], { type: 'application/json' }), 'flow.json');
