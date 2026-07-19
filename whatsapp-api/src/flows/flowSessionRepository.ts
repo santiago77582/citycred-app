@@ -11,9 +11,9 @@ export async function saveFlowSessionSafely(params: {
   complete?: boolean;
 }): Promise<Record<string, unknown>> {
   const existing = await pool.query<{
-    encrypted_data: Buffer | null;
-    data_iv: Buffer | null;
-    data_tag: Buffer | null;
+    encrypted_data: string | null;
+    data_iv: string | null;
+    data_tag: string | null;
   }>(
     `SELECT encrypted_data, data_iv, data_tag
      FROM whatsapp_flow_sessions WHERE token_id = $1`,
