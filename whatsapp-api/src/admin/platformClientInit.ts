@@ -25,14 +25,21 @@ export const PLATFORM_NAV_JS = String.raw`
     link.style.cssText = 'text-decoration:none;color:#5b36c9;font-weight:800;padding:7px 9px;border:1px solid #dfe4ee;border-radius:9px;background:#fff';
     container.appendChild(link);
   }
-  var dashboardHead = document.querySelector('.sidebar-head');
-  if (dashboardHead) {
-    var dashboardNav = document.createElement('div');
-    dashboardNav.style.cssText = 'display:flex;gap:6px;flex-wrap:wrap';
-    addLink(dashboardNav, '/admin/crm', 'CRM');
-    addLink(dashboardNav, '/admin/platform', 'Plataforma');
-    dashboardHead.appendChild(dashboardNav);
+  async function installNavigation() {
+    var response = await fetch('/admin/api/session', { credentials: 'same-origin' });
+    if (!response.ok) return;
+    var session = await response.json();
+    var isAdmin = session.user && session.user.role === 'ADMIN';
+    var dashboardHead = document.querySelector('.sidebar-head');
+    if (dashboardHead) {
+      var dashboardNav = document.createElement('div');
+      dashboardNav.style.cssText = 'display:flex;gap:6px;flex-wrap:wrap';
+      addLink(dashboardNav, '/admin/crm', 'CRM');
+      if (isAdmin) addLink(dashboardNav, '/admin/platform', 'Plataforma');
+      dashboardHead.appendChild(dashboardNav);
+    }
+    if (isAdmin) addLink(document.querySelector('.topbar nav'), '/admin/platform', 'Plataforma');
   }
-  addLink(document.querySelector('.topbar nav'), '/admin/platform', 'Plataforma');
+  installNavigation().catch(function () {});
 })();
 `;
