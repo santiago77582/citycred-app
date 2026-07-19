@@ -18,7 +18,7 @@ services:
     dockerfilePath: ./Dockerfile
     dockerContext: .
     healthCheckPath: /health
-    autoDeploy: true
+    autoDeploy: false
     envVars:
       - key: DATABASE_URL
         fromDatabase:
@@ -32,3 +32,13 @@ services:
         value: info
       - key: API_KEY
         generateValue: true
+      - key: FLOW_ENDPOINT_ENABLED
+        value: 'false'
+      - key: CAMPAIGN_EXECUTION_ENABLED
+        value: 'false'
+      - key: OPERATIONS_SCHEDULER_ENABLED
+        value: 'false'
+      - key: BACKUP_SCHEDULER_ENABLED
+        value: 'false'
+      - key: BACKUP_RESTORE_TEST_ENABLED
+        value: 'false'

@@ -13,6 +13,8 @@ El Blueprint gratuito de Render se usa únicamente para comprobar:
 - autenticación por `x-api-key`;
 - verificación GET del webhook con un token de prueba;
 - rechazo de firmas inválidas.
+- confirmación pública de `safety.safeMode: true`;
+- bot, seguimientos, campañas, Flows, monitor, backups y restauración apagados.
 
 En esta etapa deben quedar vacías las variables de Meta:
 
@@ -22,6 +24,8 @@ En esta etapa deben quedar vacías las variables de Meta:
 - `WHATSAPP_BUSINESS_ACCOUNT_ID`.
 
 No configurar todavía el callback en Meta y no tocar el webhook anterior.
+
+Los Blueprints de staging tienen `autoDeploy: false`. Importarlos crea recursos externos y requiere una confirmación separada de cuenta, proveedor y costos; este repositorio no los crea automáticamente.
 
 ## 2. Limitaciones del plan gratuito
 

@@ -11,7 +11,8 @@ export const CRM_HTML = String.raw`<!doctype html>
     <a class="brand" href="/admin"><span class="brand-mark">C</span> CityCred</a>
     <nav>
       <a href="/admin">Conversaciones</a>
-      <a class="active" href="/admin/crm">CRM</a>
+      <a class="active" href="/admin/crm">CRM y campañas</a>
+      <a data-admin-only href="/admin/platform">Plataforma WhatsApp</a>
     </nav>
     <button id="logoutButton" class="ghost" type="button">Salir</button>
   </header>

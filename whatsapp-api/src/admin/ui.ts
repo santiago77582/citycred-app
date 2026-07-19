@@ -37,6 +37,12 @@ h1 { margin: 20px 0 8px; font-size: 25px; }
 .sidebar-head { padding: 18px; border-bottom: 1px solid var(--border); display: grid; gap: 14px; }
 .top-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
 .logout { border: 1px solid var(--border); background: white; border-radius: 10px; padding: 8px 10px; color: var(--muted); }
+.module-nav { display: grid; gap: 8px; }
+.module-link { display: grid; gap: 2px; padding: 10px 12px; border: 1px solid var(--border); border-radius: 12px; background: #fff; color: var(--text); text-decoration: none; }
+.module-link strong { font-size: 14px; }
+.module-link span { color: var(--muted); font-size: 12px; line-height: 1.35; }
+.module-link:hover { border-color: var(--brand); background: #f8f6ff; }
+.module-link.active { border-color: #c9bdf4; background: #f1edff; color: var(--brand-dark); }
 .chat-list { overflow: auto; flex: 1; }
 .chat-item { width: 100%; display: grid; grid-template-columns: 46px minmax(0, 1fr); gap: 12px; border: 0; border-bottom: 1px solid #eef1f6; background: white; text-align: left; padding: 14px 16px; }
 .chat-item:hover, .chat-item.active { background: #f1edff; }
@@ -49,6 +55,12 @@ h1 { margin: 20px 0 8px; font-size: 25px; }
 .pause-dot { display: inline-block; width: 8px; height: 8px; background: #f79009; border-radius: 50%; margin-right: 6px; }
 .chat-area { min-width: 0; display: flex; flex-direction: column; background: #efeaf7; }
 .empty-state { margin: auto; text-align: center; color: var(--muted); padding: 30px; }
+.empty-state h2 { color: var(--text); }
+.quick-actions { width: min(660px, 100%); margin: 24px auto 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; text-align: left; }
+.quick-action { display: grid; gap: 6px; padding: 18px; border: 1px solid #d8cff3; border-radius: 16px; background: rgba(255,255,255,.78); color: var(--text); text-decoration: none; box-shadow: 0 8px 24px rgba(64,32,157,.06); }
+.quick-action:hover { border-color: var(--brand); background: #fff; transform: translateY(-1px); }
+.quick-action strong { color: var(--brand-dark); font-size: 16px; }
+.quick-action span { line-height: 1.45; font-size: 13px; }
 .chat-header { background: white; border-bottom: 1px solid var(--border); padding: 14px 18px; display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 .contact-name { font-weight: 900; }
 .contact-phone, .pause-state { color: var(--muted); font-size: 13px; margin-top: 3px; }
@@ -81,6 +93,7 @@ h1 { margin: 20px 0 8px; font-size: 25px; }
   .message { max-width: 88%; }
   .messages { padding: 16px; }
   .composer { padding: 10px; }
+  .quick-actions { grid-template-columns: 1fr; }
 }
 `;
 
@@ -125,6 +138,20 @@ export const DASHBOARD_HTML = String.raw`<!doctype html>
           <div class="logo"><span class="logo-mark">C</span> CityCred</div>
           <button class="logout" id="logoutButton" type="button">Salir</button>
         </div>
+        <nav class="module-nav" aria-label="Módulos principales">
+          <a class="module-link active" href="/admin">
+            <strong>Conversaciones</strong>
+            <span>Bandeja y respuesta a clientes</span>
+          </a>
+          <a class="module-link" href="/admin/crm">
+            <strong>CRM y campañas</strong>
+            <span>Clientes, equipo, etiquetas, plantillas y estadísticas</span>
+          </a>
+          <a class="module-link" data-admin-only href="/admin/platform">
+            <strong>Plataforma WhatsApp</strong>
+            <span>Bot, seguimientos, cuenta, catálogo, Flows y métricas</span>
+          </a>
+        </nav>
         <input class="search" id="searchInput" type="search" placeholder="Buscar nombre o número">
       </header>
       <div class="chat-list" id="chatList"></div>
@@ -133,6 +160,16 @@ export const DASHBOARD_HTML = String.raw`<!doctype html>
       <div class="empty-state" id="emptyState">
         <h2>Conversaciones</h2>
         <p>Elegí un cliente para leer y responder mensajes.</p>
+        <div class="quick-actions">
+          <a class="quick-action" href="/admin/crm">
+            <strong>Abrir CRM y campañas</strong>
+            <span>Gestioná clientes, equipo, etiquetas, respuestas rápidas, plantillas, campañas y estadísticas.</span>
+          </a>
+          <a class="quick-action" data-admin-only href="/admin/platform">
+            <strong>Abrir Plataforma WhatsApp</strong>
+            <span>Configurá bot y seguimientos, cuenta comercial, catálogo, WhatsApp Flows y métricas oficiales.</span>
+          </a>
+        </div>
       </div>
       <header class="chat-header hidden" id="chatHeader">
         <div class="top-row">

@@ -31,6 +31,10 @@ test('la pantalla contiene todos los módulos administrativos', () => {
   }
   assert.match(PLATFORM_HTML, /Guardar con confirmación/);
   assert.match(PLATFORM_HTML, /Nada se activa solo/);
+  assert.match(PLATFORM_HTML, /CRM y campañas/);
+  assert.match(PLATFORM_HTML, /Plataforma WhatsApp/);
+  assert.match(PLATFORM_NAV_JS, /session\.accessRole === 'ADMIN'/);
+  assert.match(PLATFORM_NAV_JS, /\[data-admin-only\]/);
 });
 
 test('los clientes visuales usan rutas protegidas de la misma aplicación', () => {

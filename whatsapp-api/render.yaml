@@ -1,19 +1,22 @@
+# Blueprint alternativo para crear únicamente un staging aislado desde este subdirectorio.
+# No incluye credenciales de Meta y nunca despliega automáticamente desde main.
 databases:
-  - name: citycred-whatsapp-db
-    databaseName: citycred_whatsapp
-    user: citycred
+  - name: citycred-whatsapp-staging-standalone-db
+    databaseName: citycred_whatsapp_staging_standalone
+    user: citycred_staging_standalone
     plan: free
 
 services:
   - type: web
-    name: citycred-whatsapp-api
+    name: citycred-whatsapp-api-staging-standalone
     runtime: docker
     plan: free
     healthCheckPath: /health
+    autoDeploy: false
     envVars:
       - key: DATABASE_URL
         fromDatabase:
-          name: citycred-whatsapp-db
+          name: citycred-whatsapp-staging-standalone-db
           property: connectionString
       - key: NODE_ENV
         value: production
@@ -21,21 +24,13 @@ services:
         value: 'false'
       - key: API_KEY
         generateValue: true
+      - key: FLOW_ENDPOINT_ENABLED
+        value: 'false'
+      - key: CAMPAIGN_EXECUTION_ENABLED
+        value: 'false'
       - key: OPERATIONS_SCHEDULER_ENABLED
         value: 'false'
       - key: BACKUP_SCHEDULER_ENABLED
         value: 'false'
       - key: BACKUP_RESTORE_TEST_ENABLED
         value: 'false'
-      - key: META_GRAPH_VERSION
-        sync: false
-      - key: META_APP_SECRET
-        sync: false
-      - key: WHATSAPP_ACCESS_TOKEN
-        sync: false
-      - key: WHATSAPP_PHONE_NUMBER_ID
-        sync: false
-      - key: WHATSAPP_BUSINESS_ACCOUNT_ID
-        sync: false
-      - key: WHATSAPP_VERIFY_TOKEN
-        generateValue: true
