@@ -14,7 +14,7 @@ import {
   decideCitycredBot,
   extractInteractiveId,
   type BotResponse
-} from './citycredBotEngine.js';
+} from './citycredBotEngineV2.js';
 
 function outboundMessage(response: BotResponse): Record<string, unknown> {
   if (response.kind === 'text') {
