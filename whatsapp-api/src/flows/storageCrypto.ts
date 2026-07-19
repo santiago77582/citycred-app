@@ -1,53 +1,75 @@
 import { createCipheriv, createDecipheriv, randomBytes } from 'node:crypto';
 import { FlowEndpointError } from './flowCrypto.js';
 
+export type StoredFlowCipher = {
+  encryptedData: string;
+  iv: string;
+  tag: string;
+};
+
+function canonicalBase64(value: string, label: string, expectedBytes?: number): Buffer {
+  if (!/^[A-Za-z0-9+/]*={0,2}$/.test(value) || value.length % 4 !== 0) {
+    throw new FlowEndpointError(500, `${label} no contiene base64 válido.`);
+  }
+  const bytes = Buffer.from(value, 'base64');
+  if (expectedBytes !== undefined && bytes.length !== expectedBytes) {
+    throw new FlowEndpointError(500, `${label} tiene un tamaño inválido.`);
+  }
+  if (bytes.toString('base64').replace(/=+$/, '') !== value.replace(/=+$/, '')) {
+    throw new FlowEndpointError(500, `${label} no contiene base64 canónico.`);
+  }
+  return bytes;
+}
+
 function storageBytes(material: string): Buffer {
-  if (!/^[A-Za-z0-9+/]*={0,2}$/.test(material) || material.length % 4 !== 0) {
-    throw new FlowEndpointError(503, 'La configuración de almacenamiento del Flow no es válida.');
-  }
-  const bytes = Buffer.from(material, 'base64');
-  if (bytes.length !== 32) {
-    throw new FlowEndpointError(503, 'La configuración de almacenamiento del Flow debe tener 32 bytes.');
-  }
+  const bytes = canonicalBase64(material, 'La configuración de almacenamiento', 32);
   return bytes;
 }
 
 export function encryptStoredFlowData(
   data: Record<string, unknown>,
   material: string
-): { encryptedData: Buffer; iv: Buffer; tag: Buffer } {
+): StoredFlowCipher {
   const iv = randomBytes(12);
   const cipher = createCipheriv('aes-256-gcm', storageBytes(material), iv);
   const encryptedData = Buffer.concat([
     cipher.update(JSON.stringify(data), 'utf8'),
     cipher.final()
   ]);
-  return { encryptedData, iv, tag: cipher.getAuthTag() };
+  return {
+    encryptedData: encryptedData.toString('base64'),
+    iv: iv.toString('base64'),
+    tag: cipher.getAuthTag().toString('base64')
+  };
 }
 
 export function decryptStoredFlowData(params: {
-  encryptedData: Buffer | null;
-  iv: Buffer | null;
-  tag: Buffer | null;
+  encryptedData: string | null;
+  iv: string | null;
+  tag: string | null;
   material: string;
 }): Record<string, unknown> {
   if (!params.encryptedData || !params.iv || !params.tag) return {};
   try {
+    const encryptedData = canonicalBase64(params.encryptedData, 'Los datos protegidos');
+    const iv = canonicalBase64(params.iv, 'El vector de almacenamiento', 12);
+    const tag = canonicalBase64(params.tag, 'La etiqueta de autenticación', 16);
     const decipher = createDecipheriv(
       'aes-256-gcm',
       storageBytes(params.material),
-      params.iv
+      iv
     );
-    decipher.setAuthTag(params.tag);
+    decipher.setAuthTag(tag);
     const plaintext = Buffer.concat([
-      decipher.update(params.encryptedData),
+      decipher.update(encryptedData),
       decipher.final()
     ]).toString('utf8');
     const parsed = JSON.parse(plaintext) as unknown;
     return parsed && typeof parsed === 'object' && !Array.isArray(parsed)
       ? parsed as Record<string, unknown>
       : {};
-  } catch {
+  } catch (error) {
+    if (error instanceof FlowEndpointError) throw error;
     throw new FlowEndpointError(500, 'No se pudieron leer los datos protegidos del Flow.');
   }
 }
