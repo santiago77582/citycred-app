@@ -3,7 +3,7 @@ export const PLATFORM_INIT_JS = String.raw`
   'use strict';
   var P = window.CityCredPlatform;
   P.guarded(async function () {
-    await Promise.all([
+    await Promise.allSettled([
       P.loadOverview(),
       P.loadBot(),
       P.loadAccount(),
