@@ -62,7 +62,8 @@ flowDataEndpointRouter.post('/', async (req, res) => {
     const envelope = encryptedFlowEnvelopeSchema.parse(req.body);
     const decrypted = decryptFlowRequest({
       envelope,
-      pem: options.material
+      pem: options.material,
+      passphrase: options.passphrase
     });
     const previousResponse = await findFlowEventResponse(fingerprint);
     const result = previousResponse

@@ -10,7 +10,7 @@ Esto no significa que el backend nuevo esté atendiendo actualmente el número r
 
 Las campañas solo admiten **borradores y vista previa**. No existe una ruta que ejecute envíos masivos.
 
-El módulo Equipo guarda usuarios, roles y contraseñas cifradas para una etapa posterior. El ingreso actual al panel sigue usando una clave administrativa compartida; todavía no hay sesiones individuales por asesor.
+El panel admite usuarios individuales con correo, contraseña, roles, sesiones firmadas y revocación inmediata. La clave administrativa compartida queda únicamente como acceso de emergencia.
 
 ## Funciones incluidas
 
@@ -26,6 +26,9 @@ El módulo Equipo guarda usuarios, roles y contraseñas cifradas para una etapa 
 - Preparar campañas sin ejecutarlas y excluir contactos no habilitados.
 - Consultar estadísticas operativas de solo lectura.
 - Ejecutar verificaciones internas de mensajes, webhooks, campañas y respaldos.
+- Administrar catálogo, perfil comercial, WhatsApp Flows y analíticas oficiales desde el panel.
+- Ejecutar el bot comercial y sus seguimientos mediante colas persistentes, apagados por defecto.
+- Recibir el intercambio cifrado de WhatsApp Flows, apagado por defecto.
 - Ocultar credenciales en eventos, mensajes y registros HTTP.
 
 ## Requisitos locales
@@ -74,10 +77,23 @@ WHATSAPP_VERIFY_TOKEN=
 
 Pueden dejarse vacías para publicar y comprobar `/health`. Los envíos y la sincronización devolverán `503` hasta completar la conexión.
 
+El endpoint cifrado de WhatsApp Flows se configura por separado y permanece apagado salvo que todas las variables estén presentes:
+
+```env
+FLOW_ENDPOINT_ENABLED=false
+FLOW_ENDPOINT_MATERIAL=
+FLOW_ENDPOINT_PASSPHRASE=
+FLOW_STORAGE_MATERIAL=
+FLOW_INITIAL_SCREEN=INICIO
+```
+
+`FLOW_ENDPOINT_MATERIAL` es la clave privada PEM y `FLOW_STORAGE_MATERIAL` debe contener 32 bytes aleatorios codificados en base64. Ambos son secretos del hosting y no deben guardarse en GitHub.
+
 ## Accesos principales
 
 - `GET /health`: estado público, sin mostrar secretos.
 - `GET|POST /webhooks/whatsapp`: verificación y eventos firmados de Meta.
+- `GET|POST /flows/data-exchange`: estado e intercambio cifrado de WhatsApp Flows.
 - `GET /admin`: panel visual protegido por sesión.
 - `GET /admin/crm`: CRM, plantillas, campañas y estadísticas.
 - `/api/v1/**`: API técnica protegida mediante `x-api-key`.

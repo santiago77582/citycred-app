@@ -19,12 +19,19 @@ import { iniciarServidorDePruebas } from './helpers/servidorHttp.js';
 
 const pair = generateKeyPairSync('rsa', { modulusLength: 2048 });
 const publicPem = pair.publicKey.export({ type: 'spki', format: 'pem' }).toString();
-const endpointPem = pair.privateKey.export({ type: 'pkcs8', format: 'pem' }).toString();
+const endpointPassphrase = 'flow-endpoint-passphrase-pruebas';
+const endpointPem = pair.privateKey.export({
+  type: 'pkcs8',
+  format: 'pem',
+  cipher: 'aes-256-cbc',
+  passphrase: endpointPassphrase
+}).toString();
 const storageMaterial = randomBytes(32).toString('base64');
 
 applyTestEnv({
   FLOW_ENDPOINT_ENABLED: 'true',
   FLOW_ENDPOINT_MATERIAL: endpointPem,
+  FLOW_ENDPOINT_PASSPHRASE: endpointPassphrase,
   FLOW_STORAGE_MATERIAL: storageMaterial,
   FLOW_INITIAL_SCREEN: 'INICIO',
   META_GRAPH_VERSION: 'v23.0',
@@ -198,7 +205,8 @@ test('inicializa y completa un Flow actualizando solo campos comerciales permiti
   assert.equal(contact.rows[0]?.entity, 'Ejército');
   assert.equal(Number(contact.rows[0]?.available_quota), 95000);
   assert.equal(contact.rows[0]?.commercial_status, 'UNDER_REVIEW');
-  assert.equal(contact.rows[0]?.bot_context.flowId, 'flow-citycred-1');
+  const botContext = contact.rows[0]?.bot_context as Record<string, unknown> | undefined;
+  assert.equal(botContext?.flowId, 'flow-citycred-1');
 
   const session = await base.consultar(
     `SELECT encrypted_data, data_iv, data_tag, completed
@@ -210,6 +218,73 @@ test('inicializa y completa un Flow actualizando solo campos comerciales permiti
     Buffer.from(session.rows[0]?.encrypted_data).toString('utf8'),
     /dato-protegido|30111222/
   );
+});
+
+test('la navegación ignora pantallas enviadas dentro de data y BACK no completa', async () => {
+  const token = 'flow-token-navegacion-segura-123456';
+  await prepareToken(token);
+
+  const forward = encryptedRequest({
+    action: 'data_exchange',
+    screen: 'INICIO',
+    flow_token: token,
+    data: { next_screen: 'SUCCESS' }
+  });
+  const forwardResponse = await postFlow(forward);
+  assert.equal(forwardResponse.status, 200);
+  assert.deepEqual(
+    decryptResponse(await forwardResponse.text(), forward.aesMaterial, forward.initialVector),
+    { screen: 'DATOS_LABORALES', data: { saved: true } }
+  );
+
+  const back = encryptedRequest({
+    action: 'BACK',
+    screen: 'CONFIRMACION',
+    flow_token: token,
+    data: { previous_screen: 'INICIO' }
+  });
+  const backResponse = await postFlow(back);
+  assert.equal(backResponse.status, 200);
+  assert.deepEqual(
+    decryptResponse(await backResponse.text(), back.aesMaterial, back.initialVector),
+    { screen: 'DOCUMENTACION', data: { saved: true } }
+  );
+
+  const tokenRow = await base.consultar(`SELECT status FROM whatsapp_flow_tokens`);
+  assert.equal(tokenRow.rows[0]?.status, 'ACTIVE');
+});
+
+test('mantiene el token activo si falla la actualización final y permite reintentar', async () => {
+  const token = 'flow-token-reintento-contacto-123456';
+  await prepareToken(token);
+  base.simularFalloDeBase((sql) => sql.includes('UPDATE contacts SET'));
+
+  const first = encryptedRequest({
+    action: 'data_exchange',
+    screen: 'CONFIRMACION',
+    flow_token: token,
+    data: { complete: true, profile_name: 'Cliente recuperado' }
+  });
+  assert.equal((await postFlow(first)).status, 500);
+  base.restaurarBase();
+
+  const active = await base.consultar(`SELECT status FROM whatsapp_flow_tokens`);
+  assert.equal(active.rows[0]?.status, 'ACTIVE');
+
+  const retry = encryptedRequest({
+    action: 'data_exchange',
+    screen: 'CONFIRMACION',
+    flow_token: token,
+    data: { complete: true, profile_name: 'Cliente recuperado' }
+  });
+  assert.equal((await postFlow(retry)).status, 200);
+
+  const completed = await base.consultar(`SELECT status FROM whatsapp_flow_tokens`);
+  assert.equal(completed.rows[0]?.status, 'COMPLETED');
+  const contact = await base.consultar(
+    `SELECT profile_name FROM contacts WHERE wa_id = '5492917777777'`
+  );
+  assert.equal(contact.rows[0]?.profile_name, 'Cliente recuperado');
 });
 
 test('un reintento idéntico es idempotente y conserva una sola auditoría', async () => {

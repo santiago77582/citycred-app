@@ -26,6 +26,17 @@ function nextScreen(current: string | undefined, initial: string): string {
   return current ? sequence[current] ?? current : initial;
 }
 
+function previousScreen(current: string | undefined, initial: string): string {
+  const sequence: Record<string, string> = {
+    DATOS_LABORALES: 'INICIO',
+    CUPO: 'DATOS_LABORALES',
+    DOCUMENTACION: 'CUPO',
+    CONFIRMACION: 'DOCUMENTACION',
+    SUCCESS: 'CONFIRMACION'
+  };
+  return current ? sequence[current] ?? initial : initial;
+}
+
 export async function handleCitycredFlowV2(params: {
   body: Record<string, unknown>;
   storageMaterial: string;
@@ -66,20 +77,15 @@ export async function handleCitycredFlowV2(params: {
     throw new FlowEndpointError(400, 'Acción no soportada.');
   }
 
-  const requested = screenSchema.safeParse(
-    request.action === 'BACK'
-      ? request.data.previous_screen
-      : request.data.next_screen
-  );
-  const next = requested.success
-    ? requested.data
-    : request.action === 'BACK'
-      ? params.initialScreen
-      : nextScreen(request.screen, params.initialScreen);
-  const complete = request.data.complete === true
+  const next = request.action === 'BACK'
+    ? previousScreen(request.screen, params.initialScreen)
+    : nextScreen(request.screen, params.initialScreen);
+  const complete = request.action !== 'BACK' && (
+    request.data.complete === true
     || request.data.finalize === true
     || request.screen === 'CONFIRMACION'
-    || next === 'SUCCESS';
+    || next === 'SUCCESS'
+  );
   const merged = await saveFlowSessionSafely({
     token,
     screen: complete ? 'SUCCESS' : next,
@@ -89,8 +95,10 @@ export async function handleCitycredFlowV2(params: {
   });
 
   if (complete) {
-    await completeFlowToken(token);
     await applyCompletedFlowToContact({ token, data: merged });
+    // El token se cierra al final: si falla la actualización comercial,
+    // WhatsApp puede reintentar sin perder el formulario completado.
+    await completeFlowToken(token);
     return {
       statusCode: 200,
       response: {
