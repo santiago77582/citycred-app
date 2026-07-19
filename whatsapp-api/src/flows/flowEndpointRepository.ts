@@ -156,12 +156,23 @@ export async function applyCompletedFlowToContact(params: {
       : null;
   };
   const quotaRaw = params.data.available_quota ?? params.data.cupo ?? params.data.quota;
-  const quota = typeof quotaRaw === 'number'
+  const parsedQuota = typeof quotaRaw === 'number'
     ? quotaRaw
     : typeof quotaRaw === 'string'
       ? Number(quotaRaw.replace(/[^0-9]/g, ''))
       : Number.NaN;
+  const quota = Number.isFinite(parsedQuota)
+    && parsedQuota >= 0
+    && parsedQuota <= 1_000_000_000
+    ? parsedQuota
+    : null;
+  const current = await pool.query<{ bot_context: Record<string, unknown> | null }>(
+    `SELECT bot_context FROM contacts
+     WHERE wa_id = $1 AND archived_at IS NULL`,
+    [params.token.waId]
+  );
   const botContext = {
+    ...(current.rows[0]?.bot_context ?? {}),
     flowCompletedAt: new Date().toISOString(),
     flowId: params.token.flowId
   };
@@ -171,12 +182,12 @@ export async function applyCompletedFlowToContact(params: {
        entity = COALESCE($3, entity),
        document_number = COALESCE($4, document_number),
        seniority_range = COALESCE($5, seniority_range),
-       available_quota = CASE WHEN $6::boolean THEN $7 ELSE available_quota END,
+       available_quota = COALESCE($6, available_quota),
        commercial_status = CASE
          WHEN commercial_status = 'DO_NOT_CONTACT' THEN commercial_status
          ELSE 'UNDER_REVIEW'
        END,
-       bot_context = bot_context || $8::jsonb,
+       bot_context = $7::jsonb,
        updated_at = NOW()
      WHERE wa_id = $1 AND archived_at IS NULL`,
     [
@@ -185,8 +196,7 @@ export async function applyCompletedFlowToContact(params: {
       stringValue('entity', 100),
       stringValue('document_number', 30) ?? stringValue('dni', 30),
       stringValue('seniority_range', 50) ?? stringValue('seniority', 50),
-      Number.isFinite(quota) && quota >= 0 && quota <= 1_000_000_000,
-      Number.isFinite(quota) ? quota : null,
+      quota,
       JSON.stringify(botContext)
     ]
   );
