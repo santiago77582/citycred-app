@@ -14,6 +14,7 @@ import { campaignsRouter } from './routes/campaigns.js';
 import { commerceRouter } from './routes/commerce.js';
 import { conversationsRouter } from './routes/conversations.js';
 import { crmRouter } from './routes/crm.js';
+import { flowDataEndpointRouter } from './routes/flowDataEndpoint.js';
 import { flowsRouter } from './routes/flows.js';
 import { healthRouter } from './routes/health.js';
 import { mediaRouter } from './routes/media.js';
@@ -57,6 +58,7 @@ export function createApp(): express.Express {
 
   app.use(healthRouter);
   app.use('/webhooks', webhooksRouter);
+  app.use('/flows/data-exchange', flowDataEndpointRouter);
   app.use('/admin', adminRouter);
 
   const apiLimiter = rateLimit({
