@@ -18,9 +18,9 @@ CREATE TABLE IF NOT EXISTS whatsapp_flow_sessions (
   id UUID PRIMARY KEY,
   token_id UUID NOT NULL UNIQUE REFERENCES whatsapp_flow_tokens(id) ON DELETE CASCADE,
   current_screen TEXT,
-  encrypted_data BYTEA,
-  data_iv BYTEA,
-  data_tag BYTEA,
+  encrypted_data TEXT,
+  data_iv TEXT,
+  data_tag TEXT,
   completed BOOLEAN NOT NULL DEFAULT FALSE,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
