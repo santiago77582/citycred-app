@@ -7,23 +7,33 @@ export type StoredFlowCipher = {
   tag: string;
 };
 
-function canonicalBase64(value: string, label: string, expectedBytes?: number): Buffer {
-  if (!/^[A-Za-z0-9+/]*={0,2}$/.test(value) || value.length % 4 !== 0) {
+type StoredBase64 = string | Buffer;
+
+function base64Text(value: StoredBase64): string {
+  return Buffer.isBuffer(value) ? value.toString('utf8') : value;
+}
+
+function canonicalBase64(
+  value: StoredBase64,
+  label: string,
+  expectedBytes?: number
+): Buffer {
+  const text = base64Text(value);
+  if (!/^[A-Za-z0-9+/]*={0,2}$/.test(text) || text.length % 4 !== 0) {
     throw new FlowEndpointError(500, `${label} no contiene base64 válido.`);
   }
-  const bytes = Buffer.from(value, 'base64');
+  const bytes = Buffer.from(text, 'base64');
   if (expectedBytes !== undefined && bytes.length !== expectedBytes) {
     throw new FlowEndpointError(500, `${label} tiene un tamaño inválido.`);
   }
-  if (bytes.toString('base64').replace(/=+$/, '') !== value.replace(/=+$/, '')) {
+  if (bytes.toString('base64').replace(/=+$/, '') !== text.replace(/=+$/, '')) {
     throw new FlowEndpointError(500, `${label} no contiene base64 canónico.`);
   }
   return bytes;
 }
 
 function storageBytes(material: string): Buffer {
-  const bytes = canonicalBase64(material, 'La configuración de almacenamiento', 32);
-  return bytes;
+  return canonicalBase64(material, 'La configuración de almacenamiento', 32);
 }
 
 export function encryptStoredFlowData(
@@ -44,9 +54,9 @@ export function encryptStoredFlowData(
 }
 
 export function decryptStoredFlowData(params: {
-  encryptedData: string | null;
-  iv: string | null;
-  tag: string | null;
+  encryptedData: StoredBase64 | null;
+  iv: StoredBase64 | null;
+  tag: StoredBase64 | null;
   material: string;
 }): Record<string, unknown> {
   if (!params.encryptedData || !params.iv || !params.tag) return {};
