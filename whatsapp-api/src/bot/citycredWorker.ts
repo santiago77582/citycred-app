@@ -1,6 +1,7 @@
 import { AppError } from '../errors/AppError.js';
 import { logger } from '../utils/logger.js';
 import { processCitycredBotInbound } from './citycredBotService.js';
+import { recoverStaleFollowups } from './followupRepository.js';
 import { runDueCitycredFollowups } from './followupWorker.js';
 import {
   claimBotInboundJobs,
@@ -47,14 +48,14 @@ async function runInboundBatch(): Promise<void> {
 }
 
 export async function runCitycredWorkerOnce(): Promise<void> {
-  await recoverStaleBotJobs();
+  await Promise.all([recoverStaleBotJobs(), recoverStaleFollowups()]);
   await runInboundBatch();
   await runDueCitycredFollowups();
 }
 
 export function startCitycredWorker(): void {
   if (inboundTimer || followupTimer) return;
-  recoverStaleBotJobs().catch((error) => {
+  Promise.all([recoverStaleBotJobs(), recoverStaleFollowups()]).catch((error) => {
     logger.error({ err: error }, 'No se pudieron recuperar trabajos antiguos del bot');
   });
 
