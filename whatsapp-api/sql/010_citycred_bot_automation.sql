@@ -24,6 +24,25 @@ INSERT INTO bot_runtime_settings (id)
 VALUES ('citycred')
 ON CONFLICT (id) DO NOTHING;
 
+CREATE TABLE IF NOT EXISTS bot_inbound_jobs (
+  id UUID PRIMARY KEY,
+  inbound_message_id UUID NOT NULL UNIQUE REFERENCES messages(id) ON DELETE CASCADE,
+  wa_id TEXT NOT NULL,
+  payload JSONB NOT NULL,
+  status TEXT NOT NULL DEFAULT 'PENDING'
+    CHECK (status IN ('PENDING','PROCESSING','DONE','SKIPPED','FAILED')),
+  attempt_count INTEGER NOT NULL DEFAULT 0,
+  available_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  locked_at TIMESTAMPTZ,
+  error_message TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS bot_inbound_jobs_pending_idx
+  ON bot_inbound_jobs(available_at, id)
+  WHERE status = 'PENDING';
+
 CREATE TABLE IF NOT EXISTS bot_followups (
   id UUID PRIMARY KEY,
   contact_id UUID NOT NULL REFERENCES contacts(id) ON DELETE CASCADE,
