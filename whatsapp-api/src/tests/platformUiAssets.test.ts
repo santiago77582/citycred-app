@@ -34,8 +34,13 @@ test('la pantalla contiene todos los módulos administrativos', () => {
 });
 
 test('los clientes visuales usan rutas protegidas de la misma aplicación', () => {
-  const code = [PLATFORM_BOT_JS, PLATFORM_ACCOUNT_JS, PLATFORM_FLOWS_JS].join('\n');
-  assert.match(code, /\/admin\/api\/platform/);
+  const code = [
+    PLATFORM_CORE_JS,
+    PLATFORM_BOT_JS,
+    PLATFORM_ACCOUNT_JS,
+    PLATFORM_FLOWS_JS
+  ].join('\n');
+  assert.match(PLATFORM_CORE_JS, /\/admin\/api\/platform/);
   assert.doesNotMatch(code, /graph\.facebook\.com/);
   assert.doesNotMatch(code, /Authorization:\s*Bearer/i);
 });
