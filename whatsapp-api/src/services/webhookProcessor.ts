@@ -1,3 +1,4 @@
+import { processCitycredBotInbound } from '../bot/citycredBotService.js';
 import { recordMetaAccountChanges } from '../metaAccountEventsRepository.js';
 import {
   insertMessageAttachment,
@@ -59,6 +60,14 @@ export async function processWebhook(payload: MetaWebhookPayload): Promise<void>
           await registerInboundActivity(conversation.id);
           const attachment = attachmentFrom(message);
           if (attachment) await insertMessageAttachment({ messageId, ...attachment });
+
+          processCitycredBotInbound({ waId, inboundMessageId: messageId, message })
+            .catch((error) => {
+              logger.error(
+                { err: error, waId, inboundMessageId: messageId },
+                'Falló el bot después de guardar el mensaje entrante'
+              );
+            });
         }
 
         for (const raw of value.statuses ?? []) {
@@ -66,7 +75,9 @@ export async function processWebhook(payload: MetaWebhookPayload): Promise<void>
           const wamid = String(status.id ?? '');
           if (!wamid) continue;
           const mappedStatus = mapStatus(String(status.status ?? ''));
-          const errors = Array.isArray(status.errors) ? status.errors as Array<Record<string, unknown>> : [];
+          const errors = Array.isArray(status.errors)
+            ? status.errors as Array<Record<string, unknown>>
+            : [];
           const firstError = errors[0];
           const updated = await updateMessageStatus({
             wamid,
