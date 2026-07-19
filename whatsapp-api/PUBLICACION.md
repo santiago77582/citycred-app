@@ -49,7 +49,14 @@ Después de cargar las credenciales, ambos valores deben ser `true`.
 
 ## Copias de seguridad
 
-- Activar respaldos automáticos de PostgreSQL.
+- Montar `BACKUP_DIRECTORY` sobre almacenamiento persistente; la carpeta interna del contenedor es efímera.
+- Mantener `BACKUP_SCHEDULER_ENABLED=false` hasta confirmar el volumen y su capacidad.
+- Crear una base aislada cuyo nombre termine en `_restore_test`; nunca reutilizar la base principal.
+- Ejecutar `npm run backup:run` y luego `npm run backup:restore-test -- UUID` antes de activar la programación.
+- Activar `OPERATIONS_SCHEDULER_ENABLED=true` para controles internos y alertas en la aplicación.
+- Activar `BACKUP_RESTORE_TEST_ENABLED=true` sólo cuando la URL descartable haya sido revisada.
+- Conservar además una copia fuera del servidor o usar los respaldos administrados del proveedor.
 - Mantener el repositorio sin archivos `.env`.
 - Guardar una copia segura de la configuración empresarial de Meta.
-- Probar restauraciones periódicamente.
+
+La validación con `pg_restore --list` comprueba el archivo, pero no reemplaza una restauración. El sistema registra ambos hitos por separado y alerta si falta un dump reciente (36 horas) o una restauración exitosa reciente (8 días).

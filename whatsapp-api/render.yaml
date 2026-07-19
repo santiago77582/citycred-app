@@ -21,6 +21,12 @@ services:
         value: 'false'
       - key: API_KEY
         generateValue: true
+      - key: OPERATIONS_SCHEDULER_ENABLED
+        value: 'false'
+      - key: BACKUP_SCHEDULER_ENABLED
+        value: 'false'
+      - key: BACKUP_RESTORE_TEST_ENABLED
+        value: 'false'
       - key: META_GRAPH_VERSION
         sync: false
       - key: META_APP_SECRET

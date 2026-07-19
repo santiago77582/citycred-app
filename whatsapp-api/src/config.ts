@@ -1,4 +1,5 @@
 import 'dotenv/config';
+import path from 'node:path';
 import { z } from 'zod';
 
 const optionalSecret = z.preprocess(
@@ -15,6 +16,16 @@ const httpUrl = z.url().refine((value) => {
   const protocol = new URL(value).protocol;
   return protocol === 'http:' || protocol === 'https:';
 }, 'La URL debe usar http o https');
+
+const postgresUrl = z.url().refine((value) => {
+  const protocol = new URL(value).protocol;
+  return protocol === 'postgres:' || protocol === 'postgresql:';
+}, 'La URL debe usar postgres o postgresql');
+
+const optionalPostgresUrl = z.preprocess(
+  (value) => (typeof value === 'string' && value.trim() === '' ? undefined : value),
+  postgresUrl.optional()
+);
 
 const corsOrigins = z.preprocess(
   (value) => {
@@ -73,13 +84,33 @@ const schema = z.object({
   CAMPAIGN_PREVIEW_TTL_MINUTES: z.coerce.number().int().min(5).max(1_440).default(60),
   CAMPAIGN_TIME_ZONE: timeZone.default('America/Argentina/Buenos_Aires'),
   CAMPAIGN_SEND_WINDOW_START_HOUR: z.coerce.number().int().min(0).max(22).default(9),
-  CAMPAIGN_SEND_WINDOW_END_HOUR: z.coerce.number().int().min(1).max(23).default(18)
+  CAMPAIGN_SEND_WINDOW_END_HOUR: z.coerce.number().int().min(1).max(23).default(18),
+  OPERATIONS_SCHEDULER_ENABLED: booleanFlag,
+  OPERATIONS_CHECK_INTERVAL_MINUTES: z.coerce.number().int().min(1).max(1_440).default(15),
+  BACKUP_SCHEDULER_ENABLED: booleanFlag,
+  BACKUP_INTERVAL_HOURS: z.coerce.number().int().min(1).max(168).default(24),
+  BACKUP_INITIAL_DELAY_MINUTES: z.coerce.number().int().min(0).max(120).default(5),
+  BACKUP_RETENTION_COUNT: z.coerce.number().int().min(1).max(365).default(14),
+  BACKUP_COMMAND_TIMEOUT_MINUTES: z.coerce.number().int().min(1).max(120).default(30),
+  BACKUP_DIRECTORY: z.string().min(1).default('/app/data/backups').refine(
+    (value) => path.isAbsolute(value),
+    'BACKUP_DIRECTORY debe ser una ruta absoluta'
+  ),
+  BACKUP_RESTORE_TEST_ENABLED: booleanFlag,
+  BACKUP_RESTORE_TEST_DATABASE_URL: optionalPostgresUrl
 }).superRefine((value, context) => {
   if (value.CAMPAIGN_SEND_WINDOW_END_HOUR <= value.CAMPAIGN_SEND_WINDOW_START_HOUR) {
     context.addIssue({
       code: 'custom',
       path: ['CAMPAIGN_SEND_WINDOW_END_HOUR'],
       message: 'Debe ser mayor que CAMPAIGN_SEND_WINDOW_START_HOUR'
+    });
+  }
+  if (value.BACKUP_RESTORE_TEST_ENABLED && !value.BACKUP_RESTORE_TEST_DATABASE_URL) {
+    context.addIssue({
+      code: 'custom',
+      path: ['BACKUP_RESTORE_TEST_DATABASE_URL'],
+      message: 'Es obligatoria cuando BACKUP_RESTORE_TEST_ENABLED=true'
     });
   }
 });

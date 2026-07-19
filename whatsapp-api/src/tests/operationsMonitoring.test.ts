@@ -148,3 +148,47 @@ test('el resumen devuelve la última ejecución y alertas abiertas', async () =>
   assert.equal(overview.latestRun?.id, run.id);
   assert.ok(overview.alerts.length > 0);
 });
+
+test('distingue validar el archivo de probar una restauración real', async () => {
+  const backupId = randomUUID();
+  await base.consultar(
+    `INSERT INTO backup_runs (
+       id, status, storage_key, size_bytes, checksum,
+       archive_verified_at, started_at, completed_at
+     ) VALUES ($1, 'SUCCESS', 'citycred-simulado.dump', 100, 'checksum', NOW(), NOW(), NOW())`,
+    [backupId]
+  );
+  const archiveOnly = await runOperationalChecks('MANUAL');
+  assert.equal(
+    archiveOnly.checks.find((check) => check.key === 'backup_archive')?.severity,
+    'OK'
+  );
+  assert.equal(
+    archiveOnly.checks.find((check) => check.key === 'backup_restore')?.severity,
+    'WARNING'
+  );
+
+  await base.consultar(
+    `UPDATE backup_runs
+     SET restore_attempted_at = NOW(), restore_error_message = 'fallo controlado'
+     WHERE id = $1`,
+    [backupId]
+  );
+  const failedRestore = await runOperationalChecks('MANUAL');
+  assert.equal(
+    failedRestore.checks.find((check) => check.key === 'backup_restore')?.severity,
+    'CRITICAL'
+  );
+
+  await base.consultar(
+    `UPDATE backup_runs
+     SET restore_error_message = NULL, restore_tested_at = NOW(), verified_at = NOW()
+     WHERE id = $1`,
+    [backupId]
+  );
+  const restored = await runOperationalChecks('MANUAL');
+  assert.equal(
+    restored.checks.find((check) => check.key === 'backup_restore')?.severity,
+    'OK'
+  );
+});
