@@ -107,7 +107,8 @@ flowDataEndpointRouter.post('/', async (req, res) => {
         : 500;
     logger.warn(
       {
-        err: error instanceof Error ? error.name : 'unknown',
+        errorName: error instanceof Error ? error.name : 'unknown',
+        errorMessage: error instanceof Error ? error.message.slice(0, 500) : 'unknown',
         statusCode,
         fingerprint
       },
