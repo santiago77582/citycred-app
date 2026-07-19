@@ -2,7 +2,7 @@ import { Router } from 'express';
 import rateLimit from 'express-rate-limit';
 import { z } from 'zod';
 import { getBotRuntimeSettings, getBotStateByWaId, updateBotRuntimeSettings } from '../bot/botStateRepository.js';
-import { decideCitycredBot } from '../bot/citycredBotEngine.js';
+import { decideCitycredBot } from '../bot/citycredBotEngineV2.js';
 import { listBotFollowups } from '../bot/followupRepository.js';
 import { listBotInboundJobs } from '../bot/inboundJobRepository.js';
 import { normalizePhone } from '../utils/phone.js';
