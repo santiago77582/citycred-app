@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto';
 import { Router } from 'express';
 import rateLimit from 'express-rate-limit';
 import { ZodError } from 'zod';
-import { handleCitycredFlow } from '../flows/citycredFlowHandler.js';
+import { handleCitycredFlowV2 } from '../flows/citycredFlowHandlerV2.js';
 import { endpointOptions } from '../flows/endpointOptions.js';
 import {
   decryptFlowRequest,
@@ -71,7 +71,7 @@ flowDataEndpointRouter.post('/', async (req, res) => {
           response: previousResponse,
           tokenId: null
         }
-      : await handleCitycredFlow({
+      : await handleCitycredFlowV2({
           body: decrypted.body,
           storageMaterial: options.storage,
           initialScreen: options.initialScreen
