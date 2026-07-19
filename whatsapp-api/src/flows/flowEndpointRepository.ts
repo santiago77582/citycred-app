@@ -1,7 +1,6 @@
 import { createHash, randomUUID } from 'node:crypto';
 import { pool } from '../db.js';
 import { AppError } from '../errors/AppError.js';
-import { decryptStoredFlowData, encryptStoredFlowData } from './storageCrypto.js';
 
 export type RegisteredFlowToken = {
   id: string;
@@ -84,56 +83,6 @@ export async function findUsableFlowToken(token: string): Promise<RegisteredFlow
     return null;
   }
   return mapToken(row);
-}
-
-export async function saveFlowSession(params: {
-  token: RegisteredFlowToken;
-  screen: string | null;
-  data: Record<string, unknown>;
-  storageMaterial: string;
-  complete?: boolean;
-}): Promise<Record<string, unknown>> {
-  const existing = await pool.query<{
-    encrypted_data: Buffer | null;
-    data_iv: Buffer | null;
-    data_tag: Buffer | null;
-  }>(
-    `SELECT encrypted_data, data_iv, data_tag
-     FROM whatsapp_flow_sessions WHERE token_id = $1`,
-    [params.token.id]
-  );
-  const previous = existing.rows[0]
-    ? decryptStoredFlowData({
-        encryptedData: existing.rows[0].encrypted_data,
-        iv: existing.rows[0].data_iv,
-        tag: existing.rows[0].data_tag,
-        material: params.storageMaterial
-      })
-    : {};
-  const merged = { ...previous, ...params.data };
-  const encrypted = encryptStoredFlowData(merged, params.storageMaterial);
-  await pool.query(
-    `INSERT INTO whatsapp_flow_sessions (
-       id, token_id, current_screen, encrypted_data, data_iv, data_tag, completed
-     ) VALUES ($1, $2, $3, $4, $5, $6, $7)
-     ON CONFLICT (token_id) DO UPDATE SET
-       current_screen = EXCLUDED.current_screen,
-       encrypted_data = EXCLUDED.encrypted_data,
-       data_iv = EXCLUDED.data_iv,
-       data_tag = EXCLUDED.data_tag,
-       completed = whatsapp_flow_sessions.completed OR EXCLUDED.completed,
-       updated_at = NOW()`,
-    [
-      randomUUID(),
-      params.token.id,
-      params.screen,
-      encrypted.encryptedData,
-      encrypted.iv,
-      encrypted.tag,
-      params.complete ?? false
-    ]
-  );
-  return merged;
 }
 
 export async function completeFlowToken(token: RegisteredFlowToken): Promise<void> {
