@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { Router } from 'express';
 import rateLimit from 'express-rate-limit';
 import { z } from 'zod';
+import { registerFlowToken } from '../flows/flowEndpointRepository.js';
 import { sendAdvancedAndPersist } from '../services/outboundAdvanced.js';
 import {
   FLOW_CATEGORIES,
@@ -14,6 +15,7 @@ import {
   updateMetaFlowMetadata,
   uploadMetaFlowJson
 } from '../services/metaFlows.js';
+import { normalizePhone } from '../utils/phone.js';
 
 export const flowsRouter = Router();
 
@@ -50,7 +52,7 @@ const irreversibleSchema = z.object({
 const sendFlowSchema = z.object({
   to: z.string().min(1).max(40),
   flowId: z.string().trim().min(1).max(200),
-  flowToken: z.string().trim().min(1).max(500).default(() => randomUUID()),
+  flowToken: z.string().trim().min(16).max(500).default(() => randomUUID()),
   cta: z.string().trim().min(1).max(30),
   body: z.string().trim().min(1).max(1024),
   header: z.string().trim().min(1).max(60).optional(),
@@ -158,6 +160,11 @@ flowsRouter.post('/send/message', async (req, res) => {
     type: 'flow',
     text: input.body,
     message: buildFlowMessage(input)
+  });
+  await registerFlowToken({
+    token: input.flowToken,
+    flowId: input.flowId,
+    waId: normalizePhone(input.to)
   });
   res.status(outcome.statusCode).json({
     ...outcome.payload,
