@@ -98,7 +98,11 @@ export async function processCitycredBotInbound(params: {
   await markBotOutbound(current.contactId);
 
   let followupsScheduled = 0;
-  if (decision.scheduleFollowups && outcome.statusCode === 201) {
+  if (
+    settings.followupsEnabled
+    && decision.scheduleFollowups
+    && outcome.statusCode === 201
+  ) {
     followupsScheduled = await scheduleCitycredFollowups({
       contactId: current.contactId,
       conversationId: current.conversationId,
