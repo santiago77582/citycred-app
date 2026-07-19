@@ -31,8 +31,26 @@ export const CRM_HTML = String.raw`<!doctype html>
       <section id="contactsView" class="view">
         <div class="view-head">
           <div><h1>Clientes</h1><p>Ficha comercial, estado, consentimiento y asesor responsable.</p></div>
-          <button id="refreshContacts" class="secondary" type="button">Actualizar</button>
+          <div class="view-head-actions">
+            <button id="openContactImport" class="secondary" type="button">Importar CSV / Excel</button>
+            <button id="refreshContacts" class="secondary" type="button">Actualizar</button>
+          </div>
         </div>
+        <section id="contactImportPanel" class="contact-import-panel hidden">
+          <div>
+            <h2>Importar clientes</h2>
+            <p>Primero se genera una vista previa. Ninguna fila se guarda hasta confirmar.</p>
+          </div>
+          <label class="contact-import-file">Archivo .csv o .xlsx, máximo 5 MB
+            <input id="contactImportFile" type="file" accept=".csv,.xlsx,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet">
+          </label>
+          <div class="contact-import-actions">
+            <button id="previewContactImport" class="primary" type="button">Revisar archivo</button>
+            <button id="commitContactImport" class="primary hidden" type="button">Confirmar importación</button>
+            <button id="closeContactImport" class="ghost" type="button">Cerrar</button>
+          </div>
+          <div id="contactImportResult" class="contact-import-result muted">Todavía no se revisó ningún archivo.</div>
+        </section>
         <div class="filters">
           <input id="contactSearch" type="search" placeholder="Buscar nombre, teléfono o DNI">
           <select id="statusFilter">
@@ -147,8 +165,8 @@ export const CRM_HTML = String.raw`<!doctype html>
           </div>
           <button id="newCampaign" class="primary" type="button">Nuevo borrador</button>
         </div>
-        <div class="campaign-lock-notice">
-          <strong>Envío desactivado.</strong> Esta pantalla no puede ejecutar campañas. Solo guarda borradores y calcula la audiencia.
+        <div id="campaignLockNotice" class="campaign-lock-notice">
+          <strong>Envío desactivado.</strong> Se pueden preparar, simular y aprobar campañas, pero no ejecutarlas.
         </div>
 
         <div class="campaign-layout">

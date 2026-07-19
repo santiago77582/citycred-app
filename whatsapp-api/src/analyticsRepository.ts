@@ -41,7 +41,16 @@ export type OperationalDashboard = {
     medianMinutes: number | null;
   };
   daily: Array<{ date: string; inbound: number; outbound: number; failed: number }>;
-  campaigns: { total: number; drafts: number; previewed: number; cancelled: number };
+  campaigns: {
+    total: number;
+    drafts: number;
+    previewed: number;
+    approved: number;
+    running: number;
+    completed: number;
+    completedWithErrors: number;
+    cancelled: number;
+  };
   alerts: { open: number; criticalOpen: number };
   limits: {
     messagesTruncated: boolean;
@@ -294,6 +303,10 @@ export async function getOperationalDashboard(days: number): Promise<Operational
       total: campaignsResult.rows.length,
       drafts: campaignCounts.DRAFT ?? 0,
       previewed: campaignCounts.PREVIEWED ?? 0,
+      approved: campaignCounts.APPROVED ?? 0,
+      running: campaignCounts.RUNNING ?? 0,
+      completed: campaignCounts.COMPLETED ?? 0,
+      completedWithErrors: campaignCounts.COMPLETED_WITH_ERRORS ?? 0,
       cancelled: campaignCounts.CANCELLED ?? 0
     },
     alerts: { open: alertsResult.rows.length, criticalOpen },

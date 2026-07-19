@@ -149,6 +149,10 @@ export const CRM_ANALYTICS_JS = String.raw`
         values: [
           ['Borradores', dashboard.campaigns.drafts],
           ['Con vista previa', dashboard.campaigns.previewed],
+          ['Aprobadas', dashboard.campaigns.approved],
+          ['En ejecución', dashboard.campaigns.running],
+          ['Completadas', dashboard.campaigns.completed],
+          ['Con alertas', dashboard.campaigns.completedWithErrors],
           ['Alertas abiertas', dashboard.alerts.open],
           ['Alertas críticas', dashboard.alerts.criticalOpen]
         ]

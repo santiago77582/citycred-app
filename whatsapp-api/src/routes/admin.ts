@@ -5,6 +5,7 @@ import { ANALYTICS_UI_CSS } from '../admin/analyticsUiStyle.js';
 import { CAMPAIGN_UI_CSS } from '../admin/campaignUiStyle.js';
 import { CRM_ANALYTICS_JS } from '../admin/crmClientAnalytics.js';
 import { CRM_CORE_JS } from '../admin/crmClientCore.js';
+import { CRM_IMPORTS_JS } from '../admin/crmClientImports.js';
 import { CRM_SETTINGS_JS } from '../admin/crmClientSettings.js';
 import { INDIVIDUAL_LOGIN_HTML } from '../admin/loginUi.js';
 import { CRM_HTML } from '../admin/crmPage.js';
@@ -40,6 +41,7 @@ import { accountRouter } from './account.js';
 import { analyticsRouter } from './analytics.js';
 import { botRouter } from './bot.js';
 import { campaignsRouter } from './campaigns.js';
+import { contactImportsRouter } from './contactImports.js';
 import { commerceRouter } from './commerce.js';
 import { crmRouter } from './crm.js';
 import { flowsRouter } from './flows.js';
@@ -152,6 +154,11 @@ adminRouter.use(
   campaignsRouter
 );
 adminRouter.use(
+  '/api/imports',
+  requirePanelRole('ADMIN', 'SUPERVISOR'),
+  contactImportsRouter
+);
+adminRouter.use(
   '/api/analytics',
   requirePanelRole('ADMIN', 'SUPERVISOR'),
   analyticsRouter
@@ -172,7 +179,7 @@ adminRouter.get('/assets/app.js', (_req, res) => {
 adminRouter.get('/assets/crm.js', (_req, res) => {
   res
     .type('application/javascript')
-    .send(`${CRM_CORE_JS}\n${CRM_SETTINGS_JS}\n${CRM_ANALYTICS_JS}\n${PLATFORM_NAV_JS}`);
+    .send(`${CRM_CORE_JS}\n${CRM_SETTINGS_JS}\n${CRM_IMPORTS_JS}\n${CRM_ANALYTICS_JS}\n${PLATFORM_NAV_JS}`);
 });
 adminRouter.get('/assets/platform.js', platformAdminOnly, (_req, res) => {
   res

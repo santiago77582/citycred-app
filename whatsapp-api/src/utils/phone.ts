@@ -39,7 +39,11 @@ export function normalizePhone(input: string): string {
 }
 
 function removeArgentinaLocal15(national: string): string {
-  for (const areaLength of [4, 3, 2]) {
+  // El único indicativo argentino de dos dígitos es 11. Probar cualquier
+  // prefijo de dos dígitos confundía, por ejemplo, 0291 555-1111 con un
+  // supuesto indicativo 29 seguido del prefijo móvil 15.
+  const areaLengths = national.startsWith('11') ? [4, 3, 2] : [4, 3];
+  for (const areaLength of areaLengths) {
     const markerIndex = areaLength;
     if (national.slice(markerIndex, markerIndex + 2) !== '15') continue;
     const subscriber = national.slice(markerIndex + 2);

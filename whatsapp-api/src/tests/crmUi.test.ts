@@ -3,6 +3,7 @@ import test from 'node:test';
 import { CRM_ATTACHMENTS_JS } from '../admin/crmClientAttachments.js';
 import { CRM_CAMPAIGNS_JS } from '../admin/crmClientCampaigns.js';
 import { CRM_CORE_JS } from '../admin/crmClientCore.js';
+import { CRM_IMPORTS_JS } from '../admin/crmClientImports.js';
 import { CRM_SETTINGS_JS } from '../admin/crmClientSettings.js';
 import { CRM_TEMPLATES_JS } from '../admin/crmClientTemplates.js';
 import { CRM_HTML } from '../admin/crmPage.js';
@@ -17,6 +18,8 @@ test('la página CRM incluye todos los módulos administrativos', () => {
   assert.match(CRM_HTML, /Sincronizar con Meta/);
   assert.match(CRM_HTML, /No envía campañas ni mensajes/);
   assert.match(CRM_HTML, /Envío desactivado/);
+  assert.match(CRM_HTML, /Importar CSV \/ Excel/);
+  assert.match(CRM_HTML, /id="contactImportPanel"/);
   assert.match(CRM_HTML, /\/admin\/assets\/crm\.js/);
 });
 
@@ -33,9 +36,12 @@ test('el cliente CRM usa únicamente rutas protegidas del panel', () => {
   assert.match(CRM_TEMPLATES_JS, /\/sync/);
   assert.match(CRM_TEMPLATES_JS, /APPROVED/);
   assert.match(CRM_CAMPAIGNS_JS, /\/admin\/api\/campaigns/);
+  assert.match(CRM_IMPORTS_JS, /\/admin\/api\/imports\/preview/);
+  assert.match(CRM_IMPORTS_JS, /confirmation: 'IMPORTAR'/);
+  assert.doesNotThrow(() => new Function(CRM_IMPORTS_JS));
   assert.doesNotMatch(
     CRM_CORE_JS + CRM_SETTINGS_JS + CRM_ATTACHMENTS_JS +
-      CRM_TEMPLATES_JS + CRM_CAMPAIGNS_JS,
+      CRM_TEMPLATES_JS + CRM_CAMPAIGNS_JS + CRM_IMPORTS_JS,
     /WHATSAPP_ACCESS_TOKEN|META_APP_SECRET|Bearer /i
   );
 });

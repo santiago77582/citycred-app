@@ -7,6 +7,8 @@ export const CRM_CAMPAIGNS_JS = String.raw`
   var labels = [];
   var selectedCampaign = null;
   var loaded = false;
+  var executionEnabled = false;
+  var executionConfig = {};
 
   var statusOptions = [
     ['NEW', 'Nuevo'], ['PENDING', 'Pendiente'], ['INTERESTED', 'Interesado'],
@@ -14,7 +16,9 @@ export const CRM_CAMPAIGNS_JS = String.raw`
     ['APPROVED', 'Aprobado'], ['REJECTED', 'Rechazado'], ['FINALIZED', 'Finalizado']
   ];
   var campaignStatusLabels = {
-    DRAFT: 'Borrador', PREVIEWED: 'Vista previa generada', CANCELLED: 'Cancelada'
+    DRAFT: 'Borrador', PREVIEWED: 'Vista previa generada', APPROVED: 'Aprobada',
+    RUNNING: 'En ejecución', COMPLETED: 'Completada',
+    COMPLETED_WITH_ERRORS: 'Completada con alertas', CANCELLED: 'Cancelada'
   };
   var exclusionLabels = {
     DO_NOT_CONTACT: 'Baja o no contactar',
@@ -252,7 +256,7 @@ export const CRM_CAMPAIGNS_JS = String.raw`
     list.innerHTML = campaigns.map(function (campaign) {
       var active = selectedCampaign && selectedCampaign.id === campaign.id ? ' active' : '';
       var summary = campaign.previewSummary || {};
-      var audience = campaign.status === 'PREVIEWED'
+      var audience = ['PREVIEWED', 'APPROVED', 'RUNNING', 'COMPLETED', 'COMPLETED_WITH_ERRORS'].indexOf(campaign.status) >= 0
         ? '<span>' + String(summary.eligibleCount || 0) + ' habilitados</span>'
         : '<span>Sin vista previa</span>';
       return '<button class="campaign-item' + active + '" data-campaign-id="' + crm.text(campaign.id) + '" type="button">' +
@@ -312,7 +316,8 @@ export const CRM_CAMPAIGNS_JS = String.raw`
     detail.classList.remove('hidden');
     var summary = campaign.previewSummary || {};
     var isEditable = campaign.status === 'DRAFT' || campaign.status === 'PREVIEWED';
-    var preview = campaign.status === 'PREVIEWED'
+    var hasPreview = ['PREVIEWED', 'APPROVED', 'RUNNING', 'COMPLETED', 'COMPLETED_WITH_ERRORS'].indexOf(campaign.status) >= 0;
+    var preview = hasPreview
       ? '<div class="campaign-metrics"><div><strong>' + String(summary.candidateCount || 0) + '</strong><span>Candidatos</span></div>' +
         '<div><strong>' + String(summary.eligibleCount || 0) + '</strong><span>Habilitados</span></div>' +
         '<div><strong>' + String(summary.excludedCount || 0) + '</strong><span>Excluidos</span></div></div>' +
@@ -322,22 +327,50 @@ export const CRM_CAMPAIGNS_JS = String.raw`
         '<div class="campaign-recipient-sections"><section><h3>Habilitados</h3><div id="campaignReadyRecipients"></div></section>' +
         '<section><h3>Excluidos</h3><div id="campaignSkippedRecipients"></div></section></div>'
       : '<div class="campaign-empty-preview">Todavía no se generó una vista previa.</div>';
+    var actions = '';
+    if (isEditable) {
+      actions += '<button id="editCampaign" class="secondary" type="button">Editar borrador</button>' +
+        '<button id="previewCampaign" class="primary" type="button">Generar vista previa</button>';
+    }
+    if (campaign.status === 'PREVIEWED' || campaign.status === 'APPROVED') {
+      actions += '<button id="simulateCampaign" class="secondary" type="button">Simular ejecución</button>';
+    }
+    if (campaign.status === 'PREVIEWED') {
+      actions += '<button id="approveCampaign" class="primary" type="button">Aprobar</button>';
+    }
+    if (campaign.status === 'APPROVED' && executionEnabled) {
+      actions += '<button id="executeCampaign" class="danger-button" type="button">Iniciar envíos</button>';
+    }
+    if (['DRAFT', 'PREVIEWED', 'APPROVED'].indexOf(campaign.status) >= 0) {
+      actions += '<button id="cancelCampaign" class="danger-button" type="button">Cancelar</button>';
+    }
+    var executionNotice = executionEnabled
+      ? 'La ejecución exige aprobador y ejecutor distintos, revalida cada baja y respeta el horario configurado.'
+      : 'La ejecución está bloqueada por configuración. Se puede simular y aprobar, pero no enviar.';
     detail.innerHTML = '<div class="campaign-detail-head"><div><h2>' + crm.text(campaign.name) + '</h2>' +
       '<p>' + crm.text(campaign.template.name + ' · ' + campaign.template.languageCode + ' · ' + (campaign.template.category || 'Sin categoría')) + '</p></div>' +
       '<span class="campaign-status campaign-status-' + crm.text(campaign.status.toLowerCase()) + '">' +
       crm.text(campaignStatusLabels[campaign.status] || campaign.status) + '</span></div>' +
-      '<div class="campaign-lock-inline">La ejecución está desactivada. No existe un botón para enviar esta campaña.</div>' +
+      '<div class="campaign-lock-inline">' + crm.text(executionNotice) + '</div>' +
       '<div class="campaign-filter-description"><strong>Segmentación:</strong> ' + crm.text(filterDescription(campaign.audienceFilter || {})) + '</div>' +
-      '<div class="campaign-detail-actions">' +
-      (isEditable ? '<button id="editCampaign" class="secondary" type="button">Editar borrador</button>' +
-        '<button id="previewCampaign" class="primary" type="button">Generar vista previa</button>' +
-        '<button id="cancelCampaign" class="danger-button" type="button">Cancelar borrador</button>' : '') + '</div>' + preview;
+      '<div class="campaign-detail-actions">' + actions + '</div>' + preview;
     if (isEditable) {
       document.getElementById('editCampaign').addEventListener('click', function () { openForm(campaign); });
       document.getElementById('previewCampaign').addEventListener('click', function () { generatePreview(campaign.id); });
+    }
+    if (document.getElementById('simulateCampaign')) {
+      document.getElementById('simulateCampaign').addEventListener('click', function () { simulateCampaign(campaign.id); });
+    }
+    if (document.getElementById('approveCampaign')) {
+      document.getElementById('approveCampaign').addEventListener('click', function () { approveCampaign(campaign.id); });
+    }
+    if (document.getElementById('executeCampaign')) {
+      document.getElementById('executeCampaign').addEventListener('click', function () { executeCampaign(campaign.id); });
+    }
+    if (document.getElementById('cancelCampaign')) {
       document.getElementById('cancelCampaign').addEventListener('click', function () { cancelCampaign(campaign.id); });
     }
-    if (campaign.status === 'PREVIEWED') {
+    if (hasPreview) {
       loadRecipients(campaign.id, 'READY');
       loadRecipients(campaign.id, 'SKIPPED');
     }
@@ -367,6 +400,40 @@ export const CRM_CAMPAIGNS_JS = String.raw`
     }
   }
 
+  async function simulateCampaign(id) {
+    try {
+      var data = await api('/' + encodeURIComponent(id) + '/simulate', { method: 'POST', body: '{}' });
+      var simulation = data.simulation || {};
+      var message = 'Simulación: ' + String(simulation.eligibleCount || 0) + ' habilitados';
+      if (simulation.newlyExcludedCount) message += ', ' + String(simulation.newlyExcludedCount) + ' excluidos nuevos';
+      message += '. No se envió ningún mensaje.';
+      crm.showToast(message, Boolean(simulation.newlyExcludedCount));
+    } catch (error) { crm.showToast(error.message, true); }
+  }
+
+  async function approveCampaign(id) {
+    if (!window.confirm('Aprobar esta audiencia. El aprobador debe ser distinto del creador.')) return;
+    try {
+      await api('/' + encodeURIComponent(id) + '/approve', { method: 'POST', body: '{}' });
+      crm.showToast('Campaña aprobada. Todavía no se envió ningún mensaje.');
+      await loadCampaigns();
+      await selectCampaign(id);
+    } catch (error) { crm.showToast(error.message, true); }
+  }
+
+  async function executeCampaign(id) {
+    var confirmation = window.prompt('Esta acción inicia envíos reales. El ejecutor debe ser distinto del aprobador. Escribí ENVIAR para continuar.');
+    if (confirmation !== 'ENVIAR') return;
+    try {
+      await api('/' + encodeURIComponent(id) + '/execute', {
+        method: 'POST', body: JSON.stringify({ confirmation: 'ENVIAR' })
+      });
+      crm.showToast('Campaña iniciada. La cola revalida cada destinatario antes de enviar.');
+      await loadCampaigns();
+      await selectCampaign(id);
+    } catch (error) { crm.showToast(error.message, true); }
+  }
+
   async function cancelCampaign(id) {
     if (!window.confirm('¿Cancelar este borrador? No se enviará ningún mensaje.')) return;
     try {
@@ -382,6 +449,14 @@ export const CRM_CAMPAIGNS_JS = String.raw`
     try {
       var data = await api('?limit=200');
       campaigns = data.campaigns || [];
+      executionEnabled = Boolean(data.executionEnabled);
+      executionConfig = data.execution || {};
+      var notice = document.getElementById('campaignLockNotice');
+      if (notice) {
+        notice.innerHTML = executionEnabled
+          ? '<strong>Ejecución controlada disponible.</strong> Requiere dos usuarios administradores y horario habilitado.'
+          : '<strong>Envío desactivado.</strong> Se pueden preparar, simular y aprobar campañas, pero no ejecutarlas.';
+      }
       renderCampaignList();
       loaded = true;
     } catch (error) {

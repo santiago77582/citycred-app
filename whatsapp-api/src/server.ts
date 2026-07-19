@@ -1,5 +1,6 @@
 import { createApp } from './app.js';
 import { startCitycredWorker, stopCitycredWorker } from './bot/citycredWorker.js';
+import { startCampaignWorker, stopCampaignWorker } from './campaignWorker.js';
 import { config } from './config.js';
 import { pool } from './db.js';
 import { logger } from './utils/logger.js';
@@ -9,6 +10,7 @@ const host = '0.0.0.0';
 
 const server = app.listen(config.PORT, host, () => {
   startCitycredWorker();
+  startCampaignWorker();
   logger.info(
     { host, puerto: config.PORT, entorno: config.NODE_ENV },
     'API de WhatsApp CityCred escuchando'
@@ -21,6 +23,7 @@ function shutdown(senal: string): void {
   if (cerrando) return;
   cerrando = true;
   stopCitycredWorker();
+  stopCampaignWorker();
   logger.info({ senal }, 'Cerrando la API');
   server.close(() => {
     pool

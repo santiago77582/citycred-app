@@ -14,6 +14,10 @@ test('convierte un móvil argentino nacional sin prefijos', () => {
   assert.equal(normalizePhone('2920123456'), '5492920123456');
 });
 
+test('no confunde el indicativo 291 con un prefijo local 15', () => {
+  assert.equal(normalizePhone('0291 555-1111'), '5492915551111');
+});
+
 test('conserva otro número internacional válido', () => {
   assert.equal(normalizePhone('+1 415 555 2671'), '14155552671');
 });
