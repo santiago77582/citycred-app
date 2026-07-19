@@ -9,6 +9,7 @@ import { errorHandler } from './middleware/errorHandler.js';
 import { accountRouter } from './routes/account.js';
 import { adminRouter } from './routes/admin.js';
 import { analyticsRouter } from './routes/analytics.js';
+import { botRouter } from './routes/bot.js';
 import { campaignsRouter } from './routes/campaigns.js';
 import { commerceRouter } from './routes/commerce.js';
 import { conversationsRouter } from './routes/conversations.js';
@@ -79,6 +80,7 @@ export function createApp(): express.Express {
   app.use('/api/v1/commerce', commerceRouter);
   app.use('/api/v1/flows', flowsRouter);
   app.use('/api/v1/meta-analytics', metaAnalyticsRouter);
+  app.use('/api/v1/bot', botRouter);
 
   app.use((_req, res) => {
     res.status(404).json({ error: 'Ruta no encontrada.' });
