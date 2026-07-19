@@ -49,7 +49,7 @@ test('no vuelve a preguntar datos ya guardados', () => {
   assert.match(decision.response?.body ?? '', /nombre y apellido y DNI/);
 });
 
-test('un DNI posterior no reemplaza el cupo ya guardado', () => {
+test('un DNI posterior se guarda sin reemplazar el cupo ya registrado', () => {
   const decision = decideCitycredBot(state({
     stage: 'WAIT_IDENTITY',
     entity: 'Ejército',
@@ -60,11 +60,11 @@ test('un DNI posterior no reemplaza el cupo ya guardado', () => {
   }), { text: 'DNI 30751003' });
   assert.equal(decision.nextStage, 'WAIT_DOCUMENTS');
   assert.equal(decision.patch.availableQuota, undefined);
-  assert.equal(decision.patch.documentNumber, undefined);
+  assert.equal(decision.patch.documentNumber, '30751003');
   assert.match(decision.response?.body ?? '', /último recibo/);
 });
 
-test('cupo cero corta sin pedir autorización documentos ni derivación', () => {
+test('cupo cero corta y aclara que no pedirá autorización documentos ni derivación', () => {
   const decision = decideCitycredBot(state({
     stage: 'WAIT_QUOTA',
     entity: 'Armada',
@@ -74,7 +74,8 @@ test('cupo cero corta sin pedir autorización documentos ni derivación', () => 
   assert.equal(decision.nextStage, 'NO_QUOTA');
   assert.equal(decision.patch.availableQuota, 0);
   assert.equal(decision.patch.handoffReason, null);
-  assert.doesNotMatch(decision.response?.body ?? '', /autorización/i);
+  assert.match(decision.response?.body ?? '', /No voy a pedirte autorización ni documentación/i);
+  assert.doesNotMatch(decision.response?.body ?? '', /mandame.*autorización/i);
   assert.equal(decision.scheduleFollowups, false);
 });
 
