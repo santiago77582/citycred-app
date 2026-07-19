@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { pool } from '../db.js';
 import { AppError } from '../errors/AppError.js';
-import type { BotContactState, BotDecision, BotStage } from './citycredBotEngine.js';
+import type { BotContactState, BotDecision, BotStage } from './citycredBotEngineV2.js';
 
 export type BotRuntimeSettings = {
   botEnabled: boolean;
