@@ -84,13 +84,26 @@ type ReadyRecipientRow = {
 };
 type BackupRow = {
   status: string;
-  completed_at: string | null;
-  verified_at: string | null;
+  completed_at: unknown;
+};
+type BackupArchiveRow = {
+  archive_verified_at: unknown;
+};
+type BackupRestoreRow = {
+  restore_attempted_at: unknown;
+  restore_tested_at: unknown;
+  restore_error_message: unknown;
 };
 
 function numberValue(value: unknown): number {
   const parsed = Number(value ?? 0);
   return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function nullableScalar(value: unknown): string | null {
+  if (Array.isArray(value)) return value.length > 0 ? nullableScalar(value[0]) : null;
+  if (value instanceof Date) return value.toISOString();
+  return typeof value === 'string' && value.length > 0 ? value : null;
 }
 
 function mapRun(row: RunRow): OperationalRun {
@@ -160,7 +173,10 @@ async function collectChecks(): Promise<OperationalCheck[]> {
     unsafeCampaigns,
     staleCampaignSends,
     readyRecipients,
-    backups
+    latestBackups,
+    latestArchives,
+    latestRestoreAttempts,
+    latestRestoreSuccesses
   ] = await Promise.all([
     countRows(`
       SELECT COUNT(*) AS count
@@ -225,9 +241,32 @@ async function collectChecks(): Promise<OperationalCheck[]> {
       WHERE cr.status = 'READY'
     `),
     pool.query<BackupRow>(`
-      SELECT status, completed_at, verified_at
+      SELECT status, completed_at
       FROM backup_runs
       ORDER BY started_at DESC
+      LIMIT 1
+    `),
+    pool.query<BackupArchiveRow>(`
+      SELECT archive_verified_at
+      FROM backup_runs
+      WHERE LOWER(status) = 'success'
+        AND deleted_at IS NULL
+        AND archive_verified_at IS NOT NULL
+      ORDER BY archive_verified_at DESC
+      LIMIT 1
+    `),
+    pool.query<BackupRestoreRow>(`
+      SELECT restore_attempted_at, restore_tested_at, restore_error_message
+      FROM backup_runs
+      WHERE restore_attempted_at IS NOT NULL
+      ORDER BY restore_attempted_at DESC
+      LIMIT 1
+    `),
+    pool.query<BackupRestoreRow>(`
+      SELECT restore_attempted_at, restore_tested_at, restore_error_message
+      FROM backup_runs
+      WHERE restore_tested_at IS NOT NULL
+      ORDER BY restore_tested_at DESC
       LIMIT 1
     `)
   ]);
@@ -242,11 +281,26 @@ async function collectChecks(): Promise<OperationalCheck[]> {
     || !validPhone(contact.phone)
   ).length;
 
-  const backup = backups.rows[0];
-  const verifiedAt = backup?.verified_at ? new Date(backup.verified_at).getTime() : Number.NaN;
-  const backupFresh = backup?.status === 'SUCCESS'
-    && Number.isFinite(verifiedAt)
-    && verifiedAt >= Date.now() - 36 * 60 * 60 * 1000;
+  const latestBackup = latestBackups.rows[0];
+  const latestArchive = latestArchives.rows[0];
+  const latestRestoreAttempt = latestRestoreAttempts.rows[0];
+  const latestRestoreSuccess = latestRestoreSuccesses.rows[0];
+  const latestBackupStatus = nullableScalar(latestBackup?.status);
+  const latestBackupCompletedAt = nullableScalar(latestBackup?.completed_at);
+  const archiveVerifiedAtValue = nullableScalar(latestArchive?.archive_verified_at);
+  const restoreAttemptedAt = nullableScalar(latestRestoreAttempt?.restore_attempted_at);
+  const restoreTestedAtValue = nullableScalar(latestRestoreSuccess?.restore_tested_at);
+  const restoreErrorMessage = nullableScalar(latestRestoreAttempt?.restore_error_message);
+  const archiveVerifiedAt = archiveVerifiedAtValue
+    ? new Date(archiveVerifiedAtValue).getTime()
+    : Number.NaN;
+  const restoreTestedAt = restoreTestedAtValue
+    ? new Date(restoreTestedAtValue).getTime()
+    : Number.NaN;
+  const archiveFresh = Number.isFinite(archiveVerifiedAt)
+    && archiveVerifiedAt >= Date.now() - 36 * 60 * 60 * 1000;
+  const restoreFresh = Number.isFinite(restoreTestedAt)
+    && restoreTestedAt >= Date.now() - 8 * 24 * 60 * 60 * 1000;
 
   return [
     {
@@ -299,16 +353,33 @@ async function collectChecks(): Promise<OperationalCheck[]> {
       details: { ineligibleReady }
     },
     {
-      key: 'backups',
-      title: 'Respaldo verificado',
-      severity: backupFresh ? 'OK' : 'WARNING',
-      message: backupFresh
-        ? 'Existe un respaldo exitoso y verificado dentro de las últimas 36 horas.'
-        : 'No existe un respaldo exitoso y verificado dentro de las últimas 36 horas.',
+      key: 'backup_archive',
+      title: 'Archivo de respaldo',
+      severity: latestBackupStatus === 'FAILED' ? 'CRITICAL' : archiveFresh ? 'OK' : 'WARNING',
+      message: latestBackupStatus === 'FAILED'
+        ? 'La última ejecución de respaldo falló.'
+        : archiveFresh
+        ? 'Existe un respaldo PostgreSQL reciente y su archivo pasó la validación estructural.'
+        : 'No existe un archivo de respaldo validado dentro de las últimas 36 horas.',
       details: {
-        latestStatus: backup?.status ?? null,
-        completedAt: backup?.completed_at ?? null,
-        verifiedAt: backup?.verified_at ?? null
+        latestStatus: latestBackupStatus,
+        latestCompletedAt: latestBackupCompletedAt,
+        archiveVerifiedAt: archiveVerifiedAtValue
+      }
+    },
+    {
+      key: 'backup_restore',
+      title: 'Prueba real de restauración',
+      severity: restoreErrorMessage ? 'CRITICAL' : restoreFresh ? 'OK' : 'WARNING',
+      message: restoreErrorMessage
+        ? 'La última prueba de restauración descartable falló.'
+        : restoreFresh
+          ? 'Un respaldo fue restaurado correctamente dentro de los últimos 8 días.'
+          : 'No existe una prueba real de restauración exitosa dentro de los últimos 8 días.',
+      details: {
+        restoreAttemptedAt,
+        restoreTestedAt: restoreTestedAtValue,
+        lastAttemptFailed: Boolean(restoreErrorMessage)
       }
     }
   ];

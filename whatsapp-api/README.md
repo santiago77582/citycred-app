@@ -27,6 +27,9 @@ El panel admite usuarios individuales con correo, contraseña, roles, sesiones f
 - Importar clientes desde CSV o XLSX mediante vista previa y confirmación separadas.
 - Consultar estadísticas operativas de solo lectura.
 - Ejecutar verificaciones internas de mensajes, webhooks, campañas y respaldos.
+- Programar verificaciones internas con alertas deduplicadas y autorresolución.
+- Generar respaldos PostgreSQL con checksum y validación estructural del archivo.
+- Probar una restauración real únicamente contra una base descartable separada.
 - Administrar catálogo, perfil comercial, WhatsApp Flows y analíticas oficiales desde el panel.
 - Ejecutar el bot comercial y sus seguimientos mediante colas persistentes, apagados por defecto.
 - Recibir el intercambio cifrado de WhatsApp Flows, apagado por defecto.
@@ -101,6 +104,23 @@ CAMPAIGN_SEND_WINDOW_START_HOUR=9
 CAMPAIGN_SEND_WINDOW_END_HOUR=18
 ```
 
+El monitoreo programado y los respaldos también tienen activación separada y permanecen apagados por defecto:
+
+```env
+OPERATIONS_SCHEDULER_ENABLED=false
+OPERATIONS_CHECK_INTERVAL_MINUTES=15
+BACKUP_SCHEDULER_ENABLED=false
+BACKUP_INTERVAL_HOURS=24
+BACKUP_INITIAL_DELAY_MINUTES=5
+BACKUP_RETENTION_COUNT=14
+BACKUP_COMMAND_TIMEOUT_MINUTES=30
+BACKUP_DIRECTORY=/app/data/backups
+BACKUP_RESTORE_TEST_ENABLED=false
+BACKUP_RESTORE_TEST_DATABASE_URL=
+```
+
+`BACKUP_DIRECTORY` debe ser un volumen persistente y protegido; el disco efímero del contenedor no constituye una copia durable. La base de restauración debe ser distinta de la base principal y su nombre debe terminar exactamente en `_restore_test`. Para conexiones SSL, agregar `?sslmode=require` a esa URL.
+
 ## Accesos principales
 
 - `GET /health`: estado público, sin mostrar secretos.
@@ -151,8 +171,19 @@ Acepta CSV y XLSX de hasta 5 MB y 5.000 filas. La vista previa no modifica clien
 - `GET /api/v1/operations/overview`
 - `POST /api/v1/operations/check`
 - `/api/v1/operations/alerts/**`
+- `GET /api/v1/operations/backups`
 
-El monitor consulta únicamente la base local. No llama a Meta ni envía mensajes.
+El monitor consulta únicamente la base local, guarda alertas deduplicadas y resuelve automáticamente las condiciones normalizadas. No llama a Meta ni envía mensajes o notificaciones externas.
+
+Después de compilar, un operador puede ejecutar los procesos sin exponerlos por HTTP:
+
+```bash
+npm run build
+npm run backup:run
+npm run backup:restore-test -- UUID_DEL_RESPALDO
+```
+
+`backup:run` crea un dump custom de PostgreSQL, restringe sus permisos, valida el archivo con `pg_restore --list` y calcula SHA-256. Eso no se presenta como una restauración exitosa. `backup:restore-test` limpia y restaura la base descartable configurada, comprueba migraciones y tablas críticas, y recién entonces registra la verificación real.
 
 ## Comprobación completa
 

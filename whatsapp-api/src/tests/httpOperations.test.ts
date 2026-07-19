@@ -33,7 +33,24 @@ test('ejecuta una verificación manual por la ruta protegida', async () => {
   const body = await response.json() as {
     run: { status: string; checks: Array<{ key: string }> };
   };
-  assert.ok(['SUCCESS', 'WARNING'].includes(body.run.status));
+  assert.ok(
+    ['SUCCESS', 'WARNING'].includes(body.run.status),
+    `verificación inesperada: ${JSON.stringify(body.run)}`
+  );
   assert.ok(body.run.checks.some((check) => check.key === 'database'));
   assert.ok(body.run.checks.some((check) => check.key === 'campaign_safety'));
+});
+
+test('expone el historial de respaldos sin permitir ejecutarlos por HTTP', async () => {
+  const response = await fetch(`${server.baseUrl}/api/v1/operations/backups`, {
+    headers: { 'x-api-key': TEST_API_KEY }
+  });
+  assert.equal(response.status, 200);
+  assert.deepEqual(await response.json(), { backups: [] });
+
+  const deniedExecution = await fetch(`${server.baseUrl}/api/v1/operations/backups`, {
+    method: 'POST',
+    headers: { 'x-api-key': TEST_API_KEY }
+  });
+  assert.equal(deniedExecution.status, 404);
 });

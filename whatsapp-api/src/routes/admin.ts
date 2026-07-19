@@ -48,6 +48,7 @@ import { flowsRouter } from './flows.js';
 import { mediaRouter } from './media.js';
 import { sendTextAndPersist } from './messages.js';
 import { metaAnalyticsRouter } from './metaAnalytics.js';
+import { operationsRouter } from './operations.js';
 import { templatesRouter } from './templates.js';
 
 export const adminRouter = Router();
@@ -162,6 +163,11 @@ adminRouter.use(
   '/api/analytics',
   requirePanelRole('ADMIN', 'SUPERVISOR'),
   analyticsRouter
+);
+adminRouter.use(
+  '/api/operations',
+  requirePanelRole('ADMIN', 'SUPERVISOR'),
+  operationsRouter
 );
 
 const platformAdminOnly = requirePanelRole('ADMIN');

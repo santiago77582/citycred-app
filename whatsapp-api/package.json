@@ -13,6 +13,8 @@
     "start": "node dist/scripts/initDb.js && node dist/server.js",
     "typecheck": "tsc --noEmit",
     "db:init": "tsx src/scripts/initDb.ts",
+    "backup:run": "node dist/scripts/runBackup.js",
+    "backup:restore-test": "node dist/scripts/verifyBackupRestore.js",
     "test": "node --import tsx --test --test-concurrency=1 src/tests/*.test.ts",
     "start:server": "node dist/server.js",
     "db:init:prod": "node dist/scripts/initDb.js"

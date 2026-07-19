@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import rateLimit from 'express-rate-limit';
 import { z } from 'zod';
+import { listBackupRuns } from '../backupService.js';
 import {
   acknowledgeOperationalAlert,
   getOperationalOverview,
@@ -49,6 +50,12 @@ operationsRouter.get('/alerts', async (req, res) => {
       limit: query.limit
     })
   });
+});
+
+operationsRouter.get('/backups', async (req, res) => {
+  const { limit } = listRunsSchema.parse(req.query);
+  res.setHeader('Cache-Control', 'private, no-store, max-age=0');
+  res.json({ backups: await listBackupRuns(limit) });
 });
 
 operationsRouter.post('/check', checkLimiter, async (_req, res) => {
