@@ -11,6 +11,13 @@ import { CRM_HTML } from '../admin/crmPage.js';
 import { CRM_CSS } from '../admin/crmStyle.js';
 import { MEDIA_COMPOSER_JS } from '../admin/mediaComposer.js';
 import { MEDIA_COMPOSER_CSS } from '../admin/mediaComposerStyle.js';
+import { PLATFORM_ACCOUNT_JS } from '../admin/platformClientAccount.js';
+import { PLATFORM_BOT_JS } from '../admin/platformClientBot.js';
+import { PLATFORM_CORE_JS } from '../admin/platformClientCore.js';
+import { PLATFORM_FLOWS_JS } from '../admin/platformClientFlows.js';
+import { PLATFORM_INIT_JS, PLATFORM_NAV_JS } from '../admin/platformClientInit.js';
+import { PLATFORM_HTML } from '../admin/platformPage.js';
+import { PLATFORM_CSS } from '../admin/platformStyle.js';
 import { TEMPLATE_COMPOSER_JS } from '../admin/templateComposer.js';
 import { TEMPLATE_UI_CSS } from '../admin/templateUiStyle.js';
 import { ADMIN_CSS, ADMIN_JS, DASHBOARD_HTML } from '../admin/ui.js';
@@ -29,11 +36,16 @@ import {
   setConversationBotPause
 } from '../repository.js';
 import { normalizePhone } from '../utils/phone.js';
+import { accountRouter } from './account.js';
 import { analyticsRouter } from './analytics.js';
+import { botRouter } from './bot.js';
 import { campaignsRouter } from './campaigns.js';
+import { commerceRouter } from './commerce.js';
 import { crmRouter } from './crm.js';
+import { flowsRouter } from './flows.js';
 import { mediaRouter } from './media.js';
 import { sendTextAndPersist } from './messages.js';
+import { metaAnalyticsRouter } from './metaAnalytics.js';
 import { templatesRouter } from './templates.js';
 
 export const adminRouter = Router();
@@ -91,6 +103,9 @@ adminRouter.get('/assets/crm.css', (_req, res) => {
     .type('text/css')
     .send(`${CRM_CSS}\n${TEMPLATE_UI_CSS}\n${CAMPAIGN_UI_CSS}\n${ANALYTICS_UI_CSS}`);
 });
+adminRouter.get('/assets/platform.css', (_req, res) => {
+  res.type('text/css').send(PLATFORM_CSS);
+});
 
 adminRouter.get('/login', (_req, res) => {
   res.type('html').send(INDIVIDUAL_LOGIN_HTML);
@@ -142,15 +157,27 @@ adminRouter.use(
   analyticsRouter
 );
 
+const platformAdminOnly = requirePanelRole('ADMIN');
+adminRouter.use('/api/platform/bot', platformAdminOnly, botRouter);
+adminRouter.use('/api/platform/account', platformAdminOnly, accountRouter);
+adminRouter.use('/api/platform/commerce', platformAdminOnly, commerceRouter);
+adminRouter.use('/api/platform/flows', platformAdminOnly, flowsRouter);
+adminRouter.use('/api/platform/meta-analytics', platformAdminOnly, metaAnalyticsRouter);
+
 adminRouter.get('/assets/app.js', (_req, res) => {
   res
     .type('application/javascript')
-    .send(`${ADMIN_JS}\n${MEDIA_COMPOSER_JS}\n${TEMPLATE_COMPOSER_JS}`);
+    .send(`${ADMIN_JS}\n${MEDIA_COMPOSER_JS}\n${TEMPLATE_COMPOSER_JS}\n${PLATFORM_NAV_JS}`);
 });
 adminRouter.get('/assets/crm.js', (_req, res) => {
   res
     .type('application/javascript')
-    .send(`${CRM_CORE_JS}\n${CRM_SETTINGS_JS}\n${CRM_ANALYTICS_JS}`);
+    .send(`${CRM_CORE_JS}\n${CRM_SETTINGS_JS}\n${CRM_ANALYTICS_JS}\n${PLATFORM_NAV_JS}`);
+});
+adminRouter.get('/assets/platform.js', platformAdminOnly, (_req, res) => {
+  res
+    .type('application/javascript')
+    .send(`${PLATFORM_CORE_JS}\n${PLATFORM_BOT_JS}\n${PLATFORM_ACCOUNT_JS}\n${PLATFORM_FLOWS_JS}\n${PLATFORM_INIT_JS}`);
 });
 
 adminRouter.get('/', (_req, res) => {
@@ -158,6 +185,9 @@ adminRouter.get('/', (_req, res) => {
 });
 adminRouter.get('/crm', (_req, res) => {
   res.type('html').send(CRM_HTML);
+});
+adminRouter.get('/platform', platformAdminOnly, (_req, res) => {
+  res.type('html').send(PLATFORM_HTML);
 });
 
 adminRouter.get('/api/session', (req, res) => {

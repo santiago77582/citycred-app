@@ -41,7 +41,12 @@ botRouter.patch('/settings', async (req, res) => {
     return;
   }
   const { confirm: _confirm, ...changes } = parsed;
-  res.json({ settings: await updateBotRuntimeSettings(changes) });
+  res.json({
+    settings: await updateBotRuntimeSettings({
+      ...changes,
+      actorUserId: req.adminUser?.userId ?? null
+    })
+  });
 });
 
 botRouter.post('/preview', async (req, res) => {
