@@ -3,6 +3,10 @@ import { pool } from '../db.js';
 import type { RegisteredFlowToken } from './flowEndpointRepository.js';
 import { decryptStoredFlowData, encryptStoredFlowData } from './storageCrypto.js';
 
+function base64Bytes(value: string): Buffer {
+  return Buffer.from(value, 'utf8');
+}
+
 export async function saveFlowSessionSafely(params: {
   token: RegisteredFlowToken;
   screen: string | null;
@@ -11,9 +15,9 @@ export async function saveFlowSessionSafely(params: {
   complete?: boolean;
 }): Promise<Record<string, unknown>> {
   const existing = await pool.query<{
-    encrypted_data: string | null;
-    data_iv: string | null;
-    data_tag: string | null;
+    encrypted_data: Buffer | null;
+    data_iv: Buffer | null;
+    data_tag: Buffer | null;
   }>(
     `SELECT encrypted_data, data_iv, data_tag
      FROM whatsapp_flow_sessions WHERE token_id = $1`,
@@ -29,6 +33,9 @@ export async function saveFlowSessionSafely(params: {
     : {};
   const merged = { ...previous, ...params.data };
   const encrypted = encryptStoredFlowData(merged, params.storageMaterial);
+  const encryptedData = base64Bytes(encrypted.encryptedData);
+  const iv = base64Bytes(encrypted.iv);
+  const tag = base64Bytes(encrypted.tag);
 
   if (existing.rows[0]) {
     await pool.query(
@@ -46,9 +53,9 @@ export async function saveFlowSessionSafely(params: {
       [
         params.token.id,
         params.screen,
-        encrypted.encryptedData,
-        encrypted.iv,
-        encrypted.tag,
+        encryptedData,
+        iv,
+        tag,
         params.complete ?? false
       ]
     );
@@ -64,9 +71,9 @@ export async function saveFlowSessionSafely(params: {
         randomUUID(),
         params.token.id,
         params.screen,
-        encrypted.encryptedData,
-        encrypted.iv,
-        encrypted.tag,
+        encryptedData,
+        iv,
+        tag,
         params.complete ?? false
       ]
     );
@@ -87,9 +94,9 @@ export async function saveFlowSessionSafely(params: {
       [
         params.token.id,
         params.screen,
-        encrypted.encryptedData,
-        encrypted.iv,
-        encrypted.tag,
+        encryptedData,
+        iv,
+        tag,
         params.complete ?? false
       ]
     );
