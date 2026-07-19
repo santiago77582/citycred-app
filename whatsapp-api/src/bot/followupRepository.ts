@@ -23,21 +23,37 @@ export async function cancelPendingFollowups(
   const result = await pool.query(
     `UPDATE bot_followups
      SET status = 'CANCELLED', skip_reason = $2, updated_at = NOW()
-     WHERE conversation_id = $1 AND status = 'PENDING'`,
+     WHERE conversation_id = $1 AND status IN ('PENDING','PROCESSING')`,
     [conversationId, reason]
   );
   return result.rowCount ?? 0;
 }
 
+export async function recoverStaleFollowups(): Promise<void> {
+  await pool.query(
+    `UPDATE bot_followups
+     SET status = CASE WHEN attempt_count >= 3 THEN 'FAILED' ELSE 'PENDING' END,
+         error_message = CASE
+           WHEN attempt_count >= 3 THEN COALESCE(error_message, 'El seguimiento superó el máximo de intentos.')
+           ELSE error_message
+         END,
+         locked_at = NULL,
+         updated_at = NOW()
+     WHERE status = 'PROCESSING'
+       AND locked_at < NOW() - INTERVAL '10 minutes'`
+  );
+}
+
 function definitions(profileName: string | null) {
-  const firstName = profileName?.trim().split(/\s+/)[0] || '¿cómo estás?';
+  const firstName = profileName?.trim().split(/\s+/)[0] ?? '';
+  const greeting = firstName ? `Hola ${firstName}.` : 'Hola.';
   return [
     {
       sequence: 1,
       delayMs: 3 * 60 * 60 * 1000,
       mode: 'TEXT' as const,
       template: null,
-      body: `Hola ${firstName}. ¿Pudiste avanzar con los datos que te pidió CityCred? Respondeme por acá y seguimos.`
+      body: `${greeting} ¿Pudiste avanzar con los datos que te pidió CityCred? Respondeme por acá y seguimos.`
     },
     {
       sequence: 2,
@@ -125,45 +141,43 @@ export async function listBotFollowups(params: {
 }
 
 export async function claimDueFollowups(limit: number): Promise<DueFollowup[]> {
-  const client = await pool.connect();
-  try {
-    await client.query('BEGIN');
-    const result = await client.query<{
-      id: string;
-      contact_id: string;
-      conversation_id: string;
-      wa_id: string;
-      profile_name: string | null;
-      entity: string | null;
-      sequence: number;
-      delivery_mode: 'TEXT' | 'TEMPLATE';
-      template_name: string | null;
-      text_body: string;
-      due_at: string;
-      created_at: string;
-    }>(
-      `SELECT bf.id, bf.contact_id, bf.conversation_id, ct.wa_id,
-              ct.profile_name, ct.entity, bf.sequence, bf.delivery_mode,
-              bf.template_name, bf.text_body, bf.due_at, bf.created_at
-       FROM bot_followups bf
-       JOIN contacts ct ON ct.id = bf.contact_id
-       WHERE bf.status = 'PENDING' AND bf.due_at <= NOW()
-       ORDER BY bf.due_at ASC, bf.id ASC
-       FOR UPDATE OF bf SKIP LOCKED
-       LIMIT $1`,
-      [limit]
+  const candidates = await pool.query<{
+    id: string;
+    contact_id: string;
+    conversation_id: string;
+    wa_id: string;
+    profile_name: string | null;
+    entity: string | null;
+    sequence: number;
+    delivery_mode: 'TEXT' | 'TEMPLATE';
+    template_name: string | null;
+    text_body: string;
+    due_at: string;
+    created_at: string;
+  }>(
+    `SELECT bf.id, bf.contact_id, bf.conversation_id, ct.wa_id,
+            ct.profile_name, ct.entity, bf.sequence, bf.delivery_mode,
+            bf.template_name, bf.text_body, bf.due_at, bf.created_at
+     FROM bot_followups bf
+     JOIN contacts ct ON ct.id = bf.contact_id
+     WHERE bf.status = 'PENDING' AND bf.due_at <= NOW()
+     ORDER BY bf.due_at ASC, bf.id ASC
+     LIMIT $1`,
+    [limit]
+  );
+
+  const claimed: DueFollowup[] = [];
+  for (const row of candidates.rows) {
+    const updated = await pool.query(
+      `UPDATE bot_followups
+       SET status = 'PROCESSING', locked_at = NOW(),
+           attempt_count = attempt_count + 1, updated_at = NOW()
+       WHERE id = $1 AND status = 'PENDING'
+       RETURNING id`,
+      [row.id]
     );
-    for (const row of result.rows) {
-      await client.query(
-        `UPDATE bot_followups
-         SET status = 'PROCESSING', locked_at = NOW(),
-             attempt_count = attempt_count + 1, updated_at = NOW()
-         WHERE id = $1`,
-        [row.id]
-      );
-    }
-    await client.query('COMMIT');
-    return result.rows.map((row) => ({
+    if (updated.rowCount !== 1) continue;
+    claimed.push({
       id: row.id,
       contactId: row.contact_id,
       conversationId: row.conversation_id,
@@ -176,13 +190,9 @@ export async function claimDueFollowups(limit: number): Promise<DueFollowup[]> {
       textBody: row.text_body,
       dueAt: row.due_at,
       createdAt: row.created_at
-    }));
-  } catch (error) {
-    await client.query('ROLLBACK').catch(() => undefined);
-    throw error;
-  } finally {
-    client.release();
+    });
   }
+  return claimed;
 }
 
 export async function followupEligibility(followup: DueFollowup): Promise<{
@@ -196,22 +206,31 @@ export async function followupEligibility(followup: DueFollowup): Promise<{
     archived_at: string | null;
     bot_paused_until: string | null;
     newer_inbound: number | string;
-    newer_outbound: number | string;
+    newer_non_followup_outbound: number | string;
   }>(
     `SELECT ct.commercial_status, ct.consent_status, ct.opt_out_at,
             ct.archived_at, c.bot_paused_until,
-            (SELECT COUNT(*) FROM messages m WHERE m.conversation_id = c.id
-              AND m.direction = 'INBOUND' AND m.created_at > $2) AS newer_inbound,
-            (SELECT COUNT(*) FROM messages m WHERE m.conversation_id = c.id
-              AND m.direction = 'OUTBOUND' AND m.created_at > $2) AS newer_outbound
-     FROM contacts ct JOIN conversations c ON c.contact_id = ct.id
+            (SELECT COUNT(*) FROM messages m
+             WHERE m.conversation_id = c.id AND m.direction = 'INBOUND'
+               AND m.created_at > $2) AS newer_inbound,
+            (SELECT COUNT(*) FROM messages m
+             WHERE m.conversation_id = c.id AND m.direction = 'OUTBOUND'
+               AND m.created_at > $2
+               AND NOT EXISTS (
+                 SELECT 1 FROM bot_followups sent
+                 WHERE sent.sent_message_id = m.id
+               )) AS newer_non_followup_outbound
+     FROM contacts ct
+     JOIN conversations c ON c.contact_id = ct.id
      WHERE ct.id = $1`,
     [followup.contactId, followup.createdAt]
   );
   const row = result.rows[0];
   if (!row) return { eligible: false, reason: 'contact_missing' };
   if (row.archived_at) return { eligible: false, reason: 'contact_archived' };
-  if (row.opt_out_at || row.consent_status === 'REVOKED') return { eligible: false, reason: 'opt_out' };
+  if (row.opt_out_at || row.consent_status === 'REVOKED') {
+    return { eligible: false, reason: 'opt_out' };
+  }
   if (['DO_NOT_CONTACT', 'FINALIZED', 'REJECTED'].includes(row.commercial_status)) {
     return { eligible: false, reason: `commercial_status_${row.commercial_status}` };
   }
@@ -219,7 +238,9 @@ export async function followupEligibility(followup: DueFollowup): Promise<{
     return { eligible: false, reason: 'bot_paused' };
   }
   if (Number(row.newer_inbound) > 0) return { eligible: false, reason: 'customer_replied' };
-  if (Number(row.newer_outbound) > 0) return { eligible: false, reason: 'conversation_advanced' };
+  if (Number(row.newer_non_followup_outbound) > 0) {
+    return { eligible: false, reason: 'conversation_advanced' };
+  }
   return { eligible: true, reason: null };
 }
 
@@ -232,13 +253,19 @@ export async function finishFollowup(params: {
   dueAt?: Date | null;
 }): Promise<void> {
   await pool.query(
-    `UPDATE bot_followups SET status = $2,
-       sent_message_id = COALESCE($3, sent_message_id), skip_reason = $4,
-       error_message = $5, due_at = COALESCE($6, due_at),
+    `UPDATE bot_followups SET
+       status = $2,
+       sent_message_id = COALESCE($3, sent_message_id),
+       skip_reason = $4,
+       error_message = $5,
+       due_at = COALESCE($6, due_at),
        sent_at = CASE WHEN $2 = 'SENT' THEN NOW() ELSE sent_at END,
-       locked_at = NULL, updated_at = NOW()
+       locked_at = NULL,
+       updated_at = NOW()
      WHERE id = $1`,
-    [params.id, params.status, params.sentMessageId ?? null,
-      params.reason ?? null, params.error ?? null, params.dueAt ?? null]
+    [
+      params.id, params.status, params.sentMessageId ?? null,
+      params.reason ?? null, params.error ?? null, params.dueAt ?? null
+    ]
   );
 }
