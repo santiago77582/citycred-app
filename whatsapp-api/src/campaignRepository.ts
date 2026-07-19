@@ -30,7 +30,12 @@ type CampaignRow = {
   template_components: unknown[];
   preview_summary: Record<string, unknown>;
   last_previewed_at: string | null;
+  approved_by: string | null;
+  approved_at: string | null;
+  started_by: string | null;
   scheduled_at: string | null;
+  started_at: string | null;
+  completed_at: string | null;
   created_by: string | null;
   created_at: string;
   updated_at: string;
@@ -41,7 +46,7 @@ type CampaignRow = {
   template_last_synced_at: string | null;
 };
 
-type CandidateRow = {
+export type CampaignEligibilityContact = {
   id: string;
   wa_id: string;
   phone: string;
@@ -50,6 +55,7 @@ type CandidateRow = {
   commercial_status: string;
   consent_status: string;
   opt_out_at: string | null;
+  archived_at?: string | null;
 };
 
 export type Campaign = {
@@ -61,7 +67,12 @@ export type Campaign = {
   templateComponents: unknown[];
   previewSummary: Record<string, unknown>;
   lastPreviewedAt: string | null;
+  approvedBy: string | null;
+  approvedAt: string | null;
+  startedBy: string | null;
   scheduledAt: string | null;
+  startedAt: string | null;
+  completedAt: string | null;
   createdBy: string | null;
   createdAt: string;
   updatedAt: string;
@@ -99,7 +110,12 @@ function mapCampaign(row: CampaignRow): Campaign {
     templateComponents: Array.isArray(row.template_components) ? row.template_components : [],
     previewSummary: row.preview_summary ?? {},
     lastPreviewedAt: row.last_previewed_at,
+    approvedBy: row.approved_by,
+    approvedAt: row.approved_at,
+    startedBy: row.started_by,
     scheduledAt: row.scheduled_at,
+    startedAt: row.started_at,
+    completedAt: row.completed_at,
     createdBy: row.created_by,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
@@ -116,7 +132,9 @@ function mapCampaign(row: CampaignRow): Campaign {
 const campaignSelect = `
   SELECT c.id, c.name, c.template_id, c.status, c.audience_filter,
          c.template_components, c.preview_summary, c.last_previewed_at,
-         c.scheduled_at, c.created_by, c.created_at, c.updated_at,
+         c.approved_by, c.approved_at, c.started_by,
+         c.scheduled_at, c.started_at, c.completed_at,
+         c.created_by, c.created_at, c.updated_at,
          t.name AS template_name, t.language_code AS template_language_code,
          t.category AS template_category, t.status AS template_status,
          t.last_synced_at AS template_last_synced_at
@@ -193,7 +211,8 @@ function candidateWhere(filter: CampaignAudienceFilter): {
   return { sql: clauses.join(' AND '), values };
 }
 
-function exclusionReason(contact: CandidateRow): string | null {
+export function campaignExclusionReason(contact: CampaignEligibilityContact): string | null {
+  if (contact.archived_at) return 'CONTACT_ARCHIVED';
   if (
     contact.commercial_status === 'DO_NOT_CONTACT'
     || contact.opt_out_at !== null
@@ -309,7 +328,7 @@ export async function cancelCampaignDraft(
   actorUserId?: string | null
 ): Promise<Campaign> {
   const before = await getCampaignById(id);
-  if (!['DRAFT', 'PREVIEWED'].includes(before.status)) {
+  if (!['DRAFT', 'PREVIEWED', 'APPROVED'].includes(before.status)) {
     throw new AppError('La campaña ya no puede cancelarse desde borrador.', 409);
   }
   await pool.query(
@@ -371,7 +390,7 @@ export async function previewCampaign(
     );
   }
 
-  const candidates = await pool.query<CandidateRow>(
+  const candidates = await pool.query<CampaignEligibilityContact>(
     `SELECT ct.id, ct.wa_id, ct.phone, ct.profile_name, ct.entity,
             ct.commercial_status, ct.consent_status, ct.opt_out_at
      FROM contacts ct
@@ -388,7 +407,7 @@ export async function previewCampaign(
     await client.query('BEGIN');
     await client.query(`DELETE FROM campaign_recipients WHERE campaign_id = $1`, [id]);
     for (const contact of candidates.rows) {
-      const reason = exclusionReason(contact);
+      const reason = campaignExclusionReason(contact);
       if (reason) {
         exclusionReasons[reason] = (exclusionReasons[reason] ?? 0) + 1;
       } else {
@@ -464,7 +483,7 @@ export async function previewCampaign(
 
 export async function listCampaignRecipients(
   campaignId: string,
-  status: 'READY' | 'SKIPPED' | undefined,
+  status: 'READY' | 'SKIPPED' | 'SENDING' | 'SENT' | 'FAILED' | 'UNKNOWN' | undefined,
   limit: number
 ): Promise<Array<Record<string, unknown>>> {
   await getCampaignById(campaignId);

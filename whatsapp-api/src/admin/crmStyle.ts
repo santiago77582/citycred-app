@@ -23,6 +23,22 @@ nav a:hover, nav a.active { color: var(--brand); background: #f1edff; }
 .content { padding: 28px; min-width: 0; }
 .view { max-width: 1450px; margin: 0 auto; }
 .view-head { display: flex; align-items: start; justify-content: space-between; gap: 20px; margin-bottom: 20px; }
+.view-head-actions, .contact-import-actions { display: flex; flex-wrap: wrap; gap: 9px; }
+.contact-import-panel { margin: 0 0 16px; padding: 18px; border: 1px solid var(--border); border-radius: 16px; background: #fff; }
+.contact-import-panel h2 { margin-bottom: 5px; }
+.contact-import-panel p { margin-bottom: 14px; color: var(--muted); }
+.contact-import-file { display: grid; gap: 7px; margin: 14px 0; color: var(--muted); font-size: 13px; font-weight: 750; }
+.contact-import-result { margin-top: 14px; }
+.contact-import-summary { display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); gap: 8px; }
+.contact-import-summary > div { display: grid; gap: 3px; padding: 11px; border-radius: 10px; background: #f8f7ff; text-align: center; }
+.contact-import-summary strong { font-size: 22px; color: var(--brand-dark); }
+.contact-import-summary span { font-size: 12px; }
+.contact-import-warning, .contact-import-success { margin: 12px 0 !important; padding: 11px; border-radius: 10px; background: #fff7df; color: #7a4b00 !important; }
+.contact-import-success { background: #dcfae6; color: #166534 !important; }
+.contact-import-rows { max-height: 220px; overflow: auto; margin: 0; padding: 0; list-style: none; border: 1px solid var(--border); border-radius: 10px; }
+.contact-import-rows li { padding: 9px 11px; border-bottom: 1px solid #eef1f6; font-size: 13px; }
+.contact-import-rows li:last-child { border-bottom: 0; }
+.contact-import-rows span { display: block; margin-top: 3px; color: var(--danger); }
 h1, h2, h3, p { margin-top: 0; }
 h1 { margin-bottom: 6px; font-size: 28px; }
 h2 { margin-bottom: 4px; font-size: 20px; }
@@ -91,5 +107,6 @@ input:focus, select:focus, textarea:focus { border-color: var(--brand); box-shad
   nav { display: none; }
   .form-grid, .filters { grid-template-columns: 1fr; }
   .attachment-grid { grid-template-columns: 1fr; }
+  .contact-import-summary { grid-template-columns: repeat(2,minmax(0,1fr)); }
 }
 `;

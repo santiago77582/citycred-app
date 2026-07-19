@@ -30,6 +30,16 @@ export function errorHandler(
     return;
   }
 
+  if (
+    typeof error === 'object'
+    && error !== null
+    && 'status' in error
+    && Number((error as { status?: unknown }).status) === 413
+  ) {
+    res.status(413).json({ error: 'El cuerpo de la solicitud supera el tamaño permitido.' });
+    return;
+  }
+
   if (error instanceof AppError) {
     res.status(error.statusCode).json({
       error: error.message,

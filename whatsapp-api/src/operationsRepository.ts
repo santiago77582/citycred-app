@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import { config } from './config.js';
 import { pool } from './db.js';
 import { AppError } from './errors/AppError.js';
 
@@ -157,6 +158,7 @@ async function collectChecks(): Promise<OperationalCheck[]> {
     webhookErrors,
     webhookStale,
     unsafeCampaigns,
+    staleCampaignSends,
     readyRecipients,
     backups
   ] = await Promise.all([
@@ -196,7 +198,20 @@ async function collectChecks(): Promise<OperationalCheck[]> {
     countRows(`
       SELECT COUNT(*) AS count
       FROM campaigns
-      WHERE status NOT IN ('DRAFT','PREVIEWED','CANCELLED')
+      WHERE status NOT IN (
+          'DRAFT','PREVIEWED','APPROVED','RUNNING',
+          'COMPLETED','COMPLETED_WITH_ERRORS','CANCELLED'
+        )
+        OR (status = 'RUNNING' AND (
+          approved_by IS NULL OR started_by IS NULL OR approved_by = started_by
+          ${config.CAMPAIGN_EXECUTION_ENABLED ? '' : "OR status = 'RUNNING'"}
+        ))
+    `),
+    countRows(`
+      SELECT COUNT(*) AS count
+      FROM campaign_recipients
+      WHERE status = 'SENDING'
+        AND attempted_at < NOW() - INTERVAL '10 minutes'
     `),
     pool.query<ReadyRecipientRow>(`
       SELECT ct.archived_at,
@@ -262,11 +277,17 @@ async function collectChecks(): Promise<OperationalCheck[]> {
     {
       key: 'campaign_safety',
       title: 'Bloqueo de campañas',
-      severity: unsafeCampaigns > 0 ? 'CRITICAL' : 'OK',
-      message: unsafeCampaigns > 0
-        ? 'Se detectaron campañas fuera de los estados seguros de borrador.'
-        : 'Todas las campañas permanecen en estados sin ejecución.',
-      details: { unsafeCampaigns }
+      severity: unsafeCampaigns + staleCampaignSends > 0 ? 'CRITICAL' : 'OK',
+      message: unsafeCampaigns + staleCampaignSends > 0
+        ? 'Se detectaron campañas sin doble control o envíos cuyo resultado quedó pendiente.'
+        : config.CAMPAIGN_EXECUTION_ENABLED
+          ? 'Las campañas activas cumplen el doble control y no hay envíos bloqueados.'
+          : 'La ejecución está desactivada y no hay campañas corriendo.',
+      details: {
+        unsafeCampaigns,
+        staleCampaignSends,
+        executionEnabled: config.CAMPAIGN_EXECUTION_ENABLED
+      }
     },
     {
       key: 'campaign_eligibility',

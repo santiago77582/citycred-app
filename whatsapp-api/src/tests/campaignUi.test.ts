@@ -8,12 +8,16 @@ test('el cliente de campañas contiene JavaScript válido', () => {
   assert.doesNotThrow(() => new Function(CRM_CAMPAIGNS_JS));
 });
 
-test('la interfaz solo crea borradores y vistas previas', () => {
+test('la interfaz expone el flujo controlado y condiciona el envío al feature flag', () => {
   assert.match(CRM_CAMPAIGNS_JS, /\/preview/);
+  assert.match(CRM_CAMPAIGNS_JS, /\/simulate/);
+  assert.match(CRM_CAMPAIGNS_JS, /\/approve/);
+  assert.match(CRM_CAMPAIGNS_JS, /\/execute/);
   assert.match(CRM_CAMPAIGNS_JS, /\/recipients\?status=/);
   assert.match(CRM_CAMPAIGNS_JS, /Guardar borrador/);
   assert.match(CRM_CAMPAIGNS_JS, /No se envió ningún mensaje/);
-  assert.doesNotMatch(CRM_CAMPAIGNS_JS, /\/execute/);
+  assert.match(CRM_CAMPAIGNS_JS, /campaign\.status === 'APPROVED' && executionEnabled/);
+  assert.match(CRM_CAMPAIGNS_JS, /confirmation !== 'ENVIAR'/);
   assert.doesNotMatch(CRM_HTML, /Enviar campaña/);
 });
 

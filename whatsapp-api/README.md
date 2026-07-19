@@ -8,7 +8,7 @@ El repositorio contiene el backend, el panel de conversaciones, CRM, plantillas,
 
 Esto no significa que el backend nuevo esté atendiendo actualmente el número real. El webhook de Meta y el sistema anterior permanecen sin cambios hasta realizar una migración controlada y autorizada.
 
-Las campañas solo admiten **borradores y vista previa**. No existe una ruta que ejecute envíos masivos.
+Las campañas incluyen borrador, vista previa, simulación, doble control y una cola de ejecución. La cola permanece **apagada por defecto** y no arranca sin `CAMPAIGN_EXECUTION_ENABLED=true`.
 
 El panel admite usuarios individuales con correo, contraseña, roles, sesiones firmadas y revocación inmediata. La clave administrativa compartida queda únicamente como acceso de emergencia.
 
@@ -23,7 +23,8 @@ El panel admite usuarios individuales con correo, contraseña, roles, sesiones f
 - Mantener estados salientes monotónicos; `FAILED` es terminal.
 - Pausar el bot al responder manualmente.
 - Administrar ficha comercial, consentimiento, etiquetas y respuestas rápidas.
-- Preparar campañas sin ejecutarlas y excluir contactos no habilitados.
+- Preparar, simular y aprobar campañas con exclusión y revalidación de contactos no habilitados.
+- Importar clientes desde CSV o XLSX mediante vista previa y confirmación separadas.
 - Consultar estadísticas operativas de solo lectura.
 - Ejecutar verificaciones internas de mensajes, webhooks, campañas y respaldos.
 - Administrar catálogo, perfil comercial, WhatsApp Flows y analíticas oficiales desde el panel.
@@ -89,6 +90,17 @@ FLOW_INITIAL_SCREEN=INICIO
 
 `FLOW_ENDPOINT_MATERIAL` es la clave privada PEM y `FLOW_STORAGE_MATERIAL` debe contener 32 bytes aleatorios codificados en base64. Ambos son secretos del hosting y no deben guardarse en GitHub.
 
+La ejecución de campañas se configura por separado. Debe permanecer apagada hasta validar staging y autorizar una prueba controlada:
+
+```env
+CAMPAIGN_EXECUTION_ENABLED=false
+CAMPAIGN_MAX_RECIPIENTS=250
+CAMPAIGN_PREVIEW_TTL_MINUTES=60
+CAMPAIGN_TIME_ZONE=America/Argentina/Buenos_Aires
+CAMPAIGN_SEND_WINDOW_START_HOUR=9
+CAMPAIGN_SEND_WINDOW_END_HOUR=18
+```
+
 ## Accesos principales
 
 - `GET /health`: estado público, sin mostrar secretos.
@@ -121,7 +133,17 @@ La ruta de plantillas valida el nombre y el idioma contra la lista sincronizada.
 
 - `/api/v1/campaigns/**`
 
-Solo permite crear y editar borradores y generar vistas previas. `GET /api/v1/campaigns/capabilities` informa `executionEnabled: false`.
+La API técnica permite preparar borradores y vistas previas. La simulación, aprobación y ejecución exigen una sesión individual del panel; la aprobación y el inicio deben pertenecer a administradores distintos. `GET /api/v1/campaigns/capabilities` informa el flag, límites, vigencia de la vista previa y horario.
+
+Antes de cada destinatario, el worker vuelve a comprobar plantilla, consentimiento, baja, archivo y teléfono. Un resultado ambiguo queda `UNKNOWN` y no se reintenta automáticamente.
+
+### Importación de clientes
+
+- `POST /admin/api/imports/preview`
+- `GET /admin/api/imports/{batchId}`
+- `POST /admin/api/imports/{batchId}/commit`
+
+Acepta CSV y XLSX de hasta 5 MB y 5.000 filas. La vista previa no modifica clientes. Un consentimiento vacío queda `UNKNOWN`; para importar `GRANTED` se exige fecha explícita, y una baja existente nunca se reactiva por archivo.
 
 ### Estadísticas y monitoreo
 

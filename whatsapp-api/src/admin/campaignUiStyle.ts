@@ -34,6 +34,10 @@ export const CAMPAIGN_UI_CSS = String.raw`
 .campaign-status { display: inline-flex; border-radius: 999px; padding: 6px 10px; font-size: 12px; font-weight: 850; white-space: nowrap; }
 .campaign-status-draft { background: #eee9ff; color: #4b2ea8; }
 .campaign-status-previewed { background: #dcfae6; color: #166534; }
+.campaign-status-approved { background: #dbeafe; color: #1e40af; }
+.campaign-status-running { background: #fff7df; color: #7a4b00; }
+.campaign-status-completed { background: #dcfae6; color: #166534; }
+.campaign-status-completed_with_errors { background: #fee4e2; color: #912018; }
 .campaign-status-cancelled { background: #e4e7ec; color: #475467; }
 .campaign-filter-description { padding: 12px; border: 1px solid var(--border); border-radius: 11px; background: #fff; color: #475467; line-height: 1.45; }
 .campaign-empty-preview { margin-top: 18px; padding: 30px; border: 1px dashed var(--border); border-radius: 12px; color: var(--muted); text-align: center; }

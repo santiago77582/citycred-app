@@ -59,6 +59,15 @@ test('abre el panel con sesión firmada', async () => {
   assert.match(await response.text(), /CityCred WhatsApp/);
 });
 
+test('sirve los módulos de campañas e importación dentro del CRM', async () => {
+  const cookie = await login();
+  const response = await fetch(`${baseUrl}/admin/assets/crm.js`, { headers: { cookie } });
+  assert.equal(response.status, 200);
+  const javascript = await response.text();
+  assert.match(javascript, /\/admin\/api\/campaigns/);
+  assert.match(javascript, /\/admin\/api\/imports\/preview/);
+});
+
 test('lista conversaciones vacías con sesión válida', async () => {
   const cookie = await login();
   const response = await fetch(`${baseUrl}/admin/api/conversations`, {

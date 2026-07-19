@@ -297,6 +297,10 @@ test('calcula contactos, mensajes, tiempos, campañas y alertas', async () => {
     total: 3,
     drafts: 1,
     previewed: 1,
+    approved: 0,
+    running: 0,
+    completed: 0,
+    completedWithErrors: 0,
     cancelled: 1
   });
   assert.equal(dashboard.alerts.open, 3);

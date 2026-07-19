@@ -101,11 +101,11 @@ test('crea un borrador y genera vista previa sin enviar mensajes', async () => {
     assert.equal(previewBody.preview?.eligibleCount, 1);
     assert.equal(externalCalls, 0);
 
-    const nonexistentExecution = await fetch(
+    const executionRequiresNamedPanelUser = await fetch(
       `${server.baseUrl}/api/v1/campaigns/${campaignId}/execute`,
-      { method: 'POST', headers: headers(), body: '{}' }
+      { method: 'POST', headers: headers(), body: JSON.stringify({ confirmation: 'ENVIAR' }) }
     );
-    assert.equal(nonexistentExecution.status, 404);
+    assert.equal(executionRequiresNamedPanelUser.status, 403);
     assert.equal(externalCalls, 0);
 
     const messageCount = await base.consultar('SELECT COUNT(*)::int AS total FROM messages');
