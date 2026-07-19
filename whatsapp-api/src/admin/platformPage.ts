@@ -11,8 +11,8 @@ export const PLATFORM_HTML = String.raw`<!doctype html>
     <a class="brand" href="/admin"><span class="brand-mark">C</span> CityCred</a>
     <nav>
       <a href="/admin">Conversaciones</a>
-      <a href="/admin/crm">CRM</a>
-      <a class="active" href="/admin/platform">Plataforma</a>
+      <a href="/admin/crm">CRM y campañas</a>
+      <a class="active" href="/admin/platform">Plataforma WhatsApp</a>
     </nav>
     <button id="logoutButton" class="ghost" type="button">Salir</button>
   </header>

@@ -56,7 +56,12 @@ test('abre el panel con sesión firmada', async () => {
   const cookie = await login();
   const response = await fetch(`${baseUrl}/admin`, { headers: { cookie } });
   assert.equal(response.status, 200);
-  assert.match(await response.text(), /CityCred WhatsApp/);
+  const html = await response.text();
+  assert.match(html, /CityCred WhatsApp/);
+  assert.match(html, /CRM y campañas/);
+  assert.match(html, /Plataforma WhatsApp/);
+  assert.match(html, /href="\/admin\/crm"/);
+  assert.match(html, /href="\/admin\/platform"/);
 });
 
 test('sirve los módulos de campañas e importación dentro del CRM', async () => {

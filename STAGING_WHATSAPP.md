@@ -2,7 +2,18 @@
 
 Este despliegue valida la API y PostgreSQL sin conectar Meta ni afectar el número real `7121`.
 
-## Crear el staging
+## Estado de esta preparación
+
+El repositorio deja listo el staging, pero **no crea recursos externos por sí solo**. En particular:
+
+- `autoDeploy` está apagado;
+- no hay credenciales ni placeholders `META_*`/`WHATSAPP_*` en los Blueprints de staging;
+- bot, seguimientos, campañas, Flows, monitor y respaldos nacen apagados;
+- CI construye y arranca el contenedor contra PostgreSQL efímero sin publicar la imagen.
+
+Crear el Blueprint sigue siendo una acción externa. Debe hacerse únicamente después de confirmar el proveedor, la cuenta y cualquier condición de costo, incluso si el plan elegido figura como gratuito.
+
+## Crear el staging después de esa confirmación
 
 Usar el Blueprint raíz `render.yaml` mediante:
 
@@ -14,6 +25,8 @@ El Blueprint crea:
 - `citycred-whatsapp-staging-db`: PostgreSQL de pruebas;
 - una `API_KEY` generada por Render;
 - ninguna credencial de Meta.
+
+El primer despliegue y cada despliegue posterior son manuales. No habilitar Auto-Deploy desde el panel.
 
 El repositorio es un monorepo. El servicio usa `rootDir: whatsapp-api`, construye `whatsapp-api/Dockerfile` y comprueba `/health`.
 
@@ -31,6 +44,8 @@ Debe devolver HTTP 200 con:
 - `database: "ok"`;
 - `meta.envioConfigurado: false`;
 - `meta.webhookConfigurado: false`.
+- `safety.safeMode: true`;
+- todos los valores de `safety.features` en `false`.
 
 ## Comprobación automática
 
@@ -38,8 +53,22 @@ En GitHub Actions ejecutar manualmente el workflow **WhatsApp API Staging Smoke 
 
 - salud de PostgreSQL;
 - que Meta siga desconectado;
+- que bot, seguimientos, campañas, Flows, monitor, backups y restauraciones sigan apagados;
 - que `/api/v1/**` rechace solicitudes sin `x-api-key`;
-- que el webhook no acepte una verificación inválida.
+- que GET y POST del webhook no puedan activarse;
+- que GET y POST de WhatsApp Flows permanezcan inactivos;
+- que el servidor conserve encabezados HTTP de seguridad.
+
+El workflow es exclusivamente manual: no acepta credenciales y sólo necesita el origen HTTPS público del staging, sin ruta ni parámetros.
+
+## Validación previa sin hosting
+
+Cada PR que cambia la API ejecuta dos trabajos:
+
+1. pruebas, TypeScript, compilación y auditoría de dependencias;
+2. construcción de la imagen Docker, migraciones sobre PostgreSQL 16 efímero, arranque y comprobación de `safety.safeMode`.
+
+La imagen se usa únicamente dentro del runner y no se publica en ningún registro.
 
 ## Límites
 

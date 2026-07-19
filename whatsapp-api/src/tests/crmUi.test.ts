@@ -21,6 +21,8 @@ test('la página CRM incluye todos los módulos administrativos', () => {
   assert.match(CRM_HTML, /Importar CSV \/ Excel/);
   assert.match(CRM_HTML, /id="contactImportPanel"/);
   assert.match(CRM_HTML, /\/admin\/assets\/crm\.js/);
+  assert.match(CRM_HTML, /CRM y campañas/);
+  assert.match(CRM_HTML, /data-admin-only href="\/admin\/platform"/);
 });
 
 test('el cliente CRM usa únicamente rutas protegidas del panel', () => {

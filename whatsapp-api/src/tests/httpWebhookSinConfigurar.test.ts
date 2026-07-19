@@ -46,10 +46,25 @@ test('GET /webhooks/whatsapp rechaza la verificación si no hay verify token con
 test('GET /health informa que el webhook de Meta no está configurado', async () => {
   const res = await fetch(`${baseUrl}/health`);
   const body = (await res.json()) as {
-    meta?: { webhookConfigurado?: boolean; faltantes?: string[] };
+    meta?: { webhookConfigurado?: boolean; faltantes?: string[]; variables?: Record<string, boolean> };
+    safety?: {
+      safeMode?: boolean;
+      features?: Record<string, boolean | null>;
+    };
   };
 
   assert.equal(res.status, 200);
   assert.equal(body.meta?.webhookConfigurado, false);
   assert.ok(body.meta?.faltantes?.includes('META_APP_SECRET'));
+  assert.ok(Object.values(body.meta?.variables ?? {}).every((configured) => !configured));
+  assert.equal(body.safety?.safeMode, true);
+  assert.deepEqual(body.safety?.features, {
+    botEnabled: false,
+    followupsEnabled: false,
+    campaignExecutionEnabled: false,
+    flowEndpointEnabled: false,
+    operationsSchedulerEnabled: false,
+    backupSchedulerEnabled: false,
+    backupRestoreTestEnabled: false
+  });
 });

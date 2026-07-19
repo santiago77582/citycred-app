@@ -205,7 +205,11 @@ adminRouter.get('/platform', platformAdminOnly, (_req, res) => {
 
 adminRouter.get('/api/session', (req, res) => {
   res.setHeader('Cache-Control', 'private, no-store, max-age=0');
-  res.json({ user: req.adminUser });
+  res.json({
+    user: req.adminUser,
+    accessRole: req.adminUser?.role ?? 'ADMIN',
+    emergency: req.adminUser?.emergency ?? true
+  });
 });
 
 adminRouter.get('/api/conversations', async (req, res) => {

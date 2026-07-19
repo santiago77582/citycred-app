@@ -21,12 +21,23 @@ jobs:
           BASE_URL: ${{ inputs.base_url }}
         run: |
           node <<'NODE'
-          const base = process.env.BASE_URL?.replace(/\/+$/, '');
-          if (!base || !base.startsWith('https://')) {
-            throw new Error('base_url debe ser una URL HTTPS válida');
+          const input = process.env.BASE_URL?.replace(/\/+$/, '');
+          let parsed;
+          try { parsed = new URL(input); } catch { throw new Error('base_url debe ser una URL HTTPS válida'); }
+          if (parsed.protocol !== 'https:' || parsed.username || parsed.password ||
+              parsed.pathname !== '/' || parsed.search || parsed.hash) {
+            throw new Error('base_url debe contener únicamente el origen HTTPS público del staging');
+          }
+          const base = parsed.origin;
+
+          async function request(path, options) {
+            return fetch(base + path, Object.assign({
+              redirect: 'error',
+              signal: AbortSignal.timeout(15000)
+            }, options || {}));
           }
 
-          const healthResponse = await fetch(`${base}/health`);
+          const healthResponse = await request('/health');
           const health = await healthResponse.json();
           if (healthResponse.status !== 200 || health.status !== 'ok' || health.database !== 'ok') {
             throw new Error(`Health inválido: HTTP ${healthResponse.status} ${JSON.stringify(health)}`);
@@ -34,18 +45,56 @@ jobs:
           if (health.meta?.envioConfigurado || health.meta?.webhookConfigurado) {
             throw new Error('El staging no debe tener Meta configurado antes de la autorización del 7121');
           }
+          if (!Object.values(health.meta?.variables || {}).every(value => value === false)) {
+            throw new Error('El staging contiene al menos una variable de Meta configurada');
+          }
+          if (health.safety?.safeMode !== true) {
+            throw new Error(`El staging no está en modo seguro: ${JSON.stringify(health.safety)}`);
+          }
+          const features = health.safety?.features || {};
+          if (!Object.values(features).every(value => value === false)) {
+            throw new Error(`Hay funciones activas en staging: ${JSON.stringify(features)}`);
+          }
 
-          const privateResponse = await fetch(`${base}/api/v1/conversations`);
+          const privateResponse = await request('/api/v1/conversations');
           if (privateResponse.status !== 401) {
             throw new Error(`La API privada sin x-api-key debía responder 401, respondió ${privateResponse.status}`);
           }
 
-          const verifyResponse = await fetch(
-            `${base}/webhooks/whatsapp?hub.mode=subscribe&hub.verify_token=invalido&hub.challenge=123`
+          const verifyResponse = await request(
+            '/webhooks/whatsapp?hub.mode=subscribe&hub.verify_token=invalido&hub.challenge=123'
           );
           if (verifyResponse.status !== 403) {
             throw new Error(`El webhook sin configurar debía responder 403, respondió ${verifyResponse.status}`);
           }
 
-          console.log('Staging correcto: base OK, Meta desconectado y endpoints protegidos.');
+          const postWebhook = await request('/webhooks/whatsapp', {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({ object: 'whatsapp_business_account', entry: [] })
+          });
+          if (postWebhook.status !== 503) {
+            throw new Error(`El webhook POST desconectado debía responder 503, respondió ${postWebhook.status}`);
+          }
+
+          const flowState = await request('/flows/data-exchange');
+          const flow = await flowState.json();
+          if (flowState.status !== 200 || flow.active !== false) {
+            throw new Error(`WhatsApp Flows debía estar apagado: ${JSON.stringify(flow)}`);
+          }
+
+          const flowPost = await request('/flows/data-exchange', {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: '{}'
+          });
+          if (flowPost.status !== 503) {
+            throw new Error(`El endpoint de Flows apagado debía responder 503, respondió ${flowPost.status}`);
+          }
+
+          if (healthResponse.headers.get('x-content-type-options') !== 'nosniff') {
+            throw new Error('Falta el encabezado de seguridad X-Content-Type-Options');
+          }
+
+          console.log('Staging correcto: base OK, modo seguro, Meta y Flows desconectados.');
           NODE

@@ -59,10 +59,14 @@ test('la pantalla ofrece correo y conserva el acceso administrativo de emergenci
   assert.equal(session.status, 200);
   const body = await session.json() as {
     user: { role: string; emergency: boolean; userId: string | null };
+    accessRole: string;
+    emergency: boolean;
   };
   assert.equal(body.user.role, 'ADMIN');
   assert.equal(body.user.emergency, true);
   assert.equal(body.user.userId, null);
+  assert.equal(body.accessRole, 'ADMIN');
+  assert.equal(body.emergency, true);
 });
 
 test('un asesor inicia sesión pero no accede a campañas analíticas ni usuarios', async () => {
@@ -83,11 +87,13 @@ test('un asesor inicia sesión pero no accede a campañas analíticas ni usuario
   assert.equal(session.status, 200);
   const sessionBody = await session.json() as {
     user: { userId: string; role: string; displayName: string; emergency: boolean };
+    accessRole: string;
   };
   assert.equal(sessionBody.user.userId, advisor.id);
   assert.equal(sessionBody.user.role, 'ADVISOR');
   assert.equal(sessionBody.user.displayName, 'Asesor Uno');
   assert.equal(sessionBody.user.emergency, false);
+  assert.equal(sessionBody.accessRole, 'ADVISOR');
 
   assert.equal((await adminRequest('/api/conversations', logged.cookie)).status, 200);
   assert.equal((await adminRequest('/api/analytics/dashboard', logged.cookie)).status, 403);
