@@ -373,7 +373,13 @@ export const ADMIN_JS = String.raw`
     composer.classList.remove('hidden');
     appShell.classList.add('chat-open');
     await loadMessages(true);
-    messageInput.focus();
+    // preventScroll evita que el navegador arrastre la página hasta el campo
+    // de escritura: sin esto, abrir un chat saltaba al final de la página.
+    try {
+      messageInput.focus({ preventScroll: true });
+    } catch (error) {
+      messageInput.focus();
+    }
   }
 
   composer.addEventListener('submit', async function (event) {
