@@ -16,6 +16,7 @@ import {
 import { sanitizeInboundMessage, sanitizeWebhookPayload } from '../security/webhookSanitizer.js';
 import type { MetaWebhookPayload } from '../types/whatsapp.js';
 import { logger } from '../utils/logger.js';
+import { processMessageEchoes } from './messageEchoes.js';
 import { attachmentFrom, mapStatus, messageText } from './webhookMessage.js';
 
 export async function processWebhook(payload: MetaWebhookPayload): Promise<void> {
@@ -66,6 +67,9 @@ export async function processWebhook(payload: MetaWebhookPayload): Promise<void>
             payload: message
           });
         }
+
+        // Respuestas que el negocio mandó desde el celular, si Meta las entrega.
+        await processMessageEchoes(value as unknown as Record<string, unknown>);
 
         for (const raw of value.statuses ?? []) {
           const status = raw as Record<string, unknown>;
