@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { resolveGridKey } from '../quotes/grids.js';
-import { affordableOptions, quoteLoan } from '../quotes/quoteService.js';
+import { affordableOptions, maxAmountForQuota, quoteLoan } from '../quotes/quoteService.js';
 
 /**
  * Los valores esperados salen TAL CUAL del Excel
@@ -123,4 +123,49 @@ test('las cuotas se informan en pesos enteros, sin centavos', () => {
     assert.equal(Number.isInteger(option.monthlyInstallment), true);
   }
   assert.equal(Number.isInteger(outcome.quote.netAmount), true);
+});
+
+test('los montos salen de la grilla: nunca se inventa una fila intermedia', () => {
+  // La grilla va de mil en mil, asi que 150.500 NO es una fila real.
+  const outcome = quoteLoan({ force: 'EJERCITO', situation: 'CAREER', requestedAmount: 150_500 });
+  assert.ok(outcome.ok);
+  // Se usa la fila real anterior y se avisa explicitamente.
+  assert.equal(outcome.quote.quotedAmount, 150_000);
+  assert.equal(outcome.quote.adjustedToGridRow, true);
+  assert.equal(outcome.quote.requestedAmount, 150_500);
+
+  // Y los valores coinciden con cotizar directamente esa fila de la grilla.
+  const fila = quoteLoan({ force: 'EJERCITO', situation: 'CAREER', requestedAmount: 150_000 });
+  assert.ok(fila.ok);
+  assert.equal(fila.quote.adjustedToGridRow, false);
+  assert.deepEqual(outcome.quote.options, fila.quote.options);
+  assert.equal(outcome.quote.netAmount, fila.quote.netAmount);
+});
+
+test('busca en la grilla el monto mas alto que entra en el cupo del cliente', () => {
+  const mejor = maxAmountForQuota({
+    force: 'EJERCITO', situation: 'VOLUNTEER', availableQuota: 150_000, termMonths: 24
+  });
+  assert.ok(mejor);
+  // La cuota tiene que entrar en el cupo...
+  assert.ok(mejor.monthlyInstallment <= 150_000);
+  // ...y el monto tiene que ser una fila real de la grilla (de mil en mil).
+  assert.equal(mejor.amount % 1_000, 0);
+  // La fila siguiente ya no entraria.
+  const siguiente = quoteLoan({
+    force: 'EJERCITO', situation: 'VOLUNTEER', requestedAmount: mejor.amount + 1_000
+  });
+  if (siguiente.ok) {
+    const cuota24 = siguiente.quote.options.find((o) => o.termMonths === 24);
+    assert.ok(cuota24 && cuota24.monthlyInstallment > 150_000);
+  }
+});
+
+test('sin cupo suficiente no ofrece ningun monto', () => {
+  assert.equal(
+    maxAmountForQuota({
+      force: 'EJERCITO', situation: 'VOLUNTEER', availableQuota: 100, termMonths: 24
+    }),
+    null
+  );
 });
