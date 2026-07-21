@@ -72,6 +72,11 @@ h1 { margin: 20px 0 8px; font-size: 25px; }
 .message.inbound { align-self: flex-start; background: var(--inbound); border-top-left-radius: 4px; }
 .message.outbound { align-self: flex-end; background: var(--outbound); border-top-right-radius: 4px; }
 .message-text { line-height: 1.45; }
+.attachment { margin-bottom: 6px; }
+.attachment audio { width: 260px; max-width: 100%; display: block; }
+.attachment img, .attachment video { max-width: 260px; max-height: 300px; border-radius: 10px; display: block; cursor: pointer; }
+.attachment-file { display: inline-flex; align-items: center; gap: 6px; padding: 8px 10px; border-radius: 10px; background: rgba(0,0,0,.05); color: var(--brand-dark); text-decoration: none; font-size: 14px; font-weight: 600; }
+.attachment-file:hover { background: rgba(0,0,0,.09); }
 .message-foot { margin-top: 5px; display: flex; justify-content: flex-end; gap: 7px; font-size: 11px; color: var(--muted); }
 .status-failed { color: var(--danger); font-weight: 800; }
 .status-read, .status-delivered { color: var(--success); font-weight: 800; }
@@ -333,18 +338,97 @@ export const ADMIN_JS = String.raw`
     return labels[status] || status;
   }
 
+  function humanFileSize(bytes) {
+    if (!bytes || bytes < 1024) return '';
+    if (bytes < 1048576) return ' (' + Math.round(bytes / 1024) + ' KB)';
+    return ' (' + (bytes / 1048576).toFixed(1) + ' MB)';
+  }
+
+  /** Arma el reproductor/vista previa del adjunto de un mensaje. */
+  function buildAttachment(attachment) {
+    var source = '/admin/api/media/attachments/' + encodeURIComponent(attachment.id);
+    var kind = String(attachment.mediaType || '').toLowerCase();
+    var mime = String(attachment.mimeType || '').toLowerCase();
+    var wrap = document.createElement('div');
+    wrap.className = 'attachment';
+
+    if (kind === 'audio' || kind === 'voice' || mime.indexOf('audio/') === 0) {
+      var audio = document.createElement('audio');
+      audio.controls = true;
+      audio.preload = 'none';
+      audio.src = source;
+      wrap.appendChild(audio);
+      return wrap;
+    }
+
+    if (kind === 'image' || kind === 'sticker' || mime.indexOf('image/') === 0) {
+      var link = document.createElement('a');
+      link.href = source;
+      link.target = '_blank';
+      link.rel = 'noopener';
+      var img = document.createElement('img');
+      img.src = source;
+      img.alt = attachment.filename || 'Imagen recibida';
+      img.loading = 'lazy';
+      link.appendChild(img);
+      wrap.appendChild(link);
+      return wrap;
+    }
+
+    if (kind === 'video' || mime.indexOf('video/') === 0) {
+      var video = document.createElement('video');
+      video.controls = true;
+      video.preload = 'none';
+      video.src = source;
+      wrap.appendChild(video);
+      return wrap;
+    }
+
+    var fileLink = document.createElement('a');
+    fileLink.className = 'attachment-file';
+    fileLink.href = source;
+    fileLink.target = '_blank';
+    fileLink.rel = 'noopener';
+    fileLink.textContent = '📎 ' + (attachment.filename || 'Abrir archivo')
+      + humanFileSize(attachment.sizeBytes);
+    wrap.appendChild(fileLink);
+    return wrap;
+  }
+
   async function loadMessages(scrollToBottom) {
     if (!selectedWaId) return;
     try {
       var data = await api('/conversations/' + encodeURIComponent(selectedWaId) + '/messages?limit=500');
+      // Los adjuntos vienen aparte: se cruzan por messageId. Si falla, se
+      // muestran igual los mensajes (el chat nunca queda en blanco).
+      var attachmentsByMessage = {};
+      try {
+        var media = await api('/media/conversations/' + encodeURIComponent(selectedWaId) + '/attachments?limit=500');
+        (media.attachments || []).forEach(function (attachment) {
+          if (attachment.downloadStatus === 'DELETED') return;
+          attachmentsByMessage[attachment.messageId] = attachment;
+        });
+      } catch (mediaError) { /* sin adjuntos disponibles */ }
+
       var items = (data.messages || []).slice().reverse();
       messagesElement.replaceChildren();
       items.forEach(function (item) {
         var bubble = document.createElement('article');
         bubble.className = 'message ' + (item.direction === 'OUTBOUND' ? 'outbound' : 'inbound');
+        var attachment = attachmentsByMessage[item.id];
+        if (attachment) bubble.appendChild(buildAttachment(attachment));
         var text = document.createElement('div');
         text.className = 'message-text';
-        text.textContent = item.text || '[' + item.type + ']';
+        // Con adjunto, el texto suele ser un relleno ("[Audio]" o el nombre del
+        // archivo) que ya se ve en el reproductor: en ese caso no se repite.
+        var raw = item.text || '';
+        var esRelleno = /^\[.*\]$/.test(raw)
+          || (attachment && raw === attachment.filename);
+        var caption = attachment
+          ? (esRelleno ? (attachment.caption || '') : (raw || attachment.caption || ''))
+          : raw;
+        text.textContent = caption || (attachment ? '' : '[' + item.type + ']');
+        if (!text.textContent) text.classList.add('hidden');
         var foot = document.createElement('div');
         foot.className = 'message-foot';
         var time = document.createElement('span');
