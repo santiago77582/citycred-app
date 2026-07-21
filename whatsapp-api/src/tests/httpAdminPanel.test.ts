@@ -73,6 +73,15 @@ test('sirve los módulos de campañas e importación dentro del CRM', async () =
   assert.match(javascript, /\/admin\/api\/imports\/preview/);
 });
 
+test('abrir un chat no arrastra la página hasta el final', async () => {
+  const cookie = await login();
+  const response = await fetch(`${baseUrl}/admin/assets/app.js`, { headers: { cookie } });
+  assert.equal(response.status, 200);
+  const javascript = await response.text();
+  // El foco del campo de escritura no debe desplazar la página (regresión).
+  assert.match(javascript, /focus\(\{\s*preventScroll:\s*true\s*\}\)/);
+});
+
 test('lista conversaciones vacías con sesión válida', async () => {
   const cookie = await login();
   const response = await fetch(`${baseUrl}/admin/api/conversations`, {
