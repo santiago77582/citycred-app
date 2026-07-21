@@ -32,8 +32,8 @@ h1 { margin: 20px 0 8px; font-size: 25px; }
 .primary:hover { background: var(--brand-dark); }
 .login-card .primary { width: 100%; margin-top: 18px; }
 .alert { margin-top: 16px; border-radius: 12px; padding: 12px; background: #fee4e2; color: var(--danger); font-weight: 700; }
-.app-shell { height: 100vh; display: grid; grid-template-columns: 360px minmax(0, 1fr); background: var(--panel); }
-.sidebar { border-right: 1px solid var(--border); display: flex; flex-direction: column; min-width: 0; }
+.app-shell { height: 100vh; height: 100dvh; overflow: hidden; display: grid; grid-template-columns: 360px minmax(0, 1fr); background: var(--panel); }
+.sidebar { border-right: 1px solid var(--border); display: flex; flex-direction: column; min-width: 0; min-height: 0; }
 .sidebar-head { padding: 18px; border-bottom: 1px solid var(--border); display: grid; gap: 14px; }
 .top-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
 .logout { border: 1px solid var(--border); background: white; border-radius: 10px; padding: 8px 10px; color: var(--muted); }
@@ -53,7 +53,7 @@ h1 { margin: 20px 0 8px; font-size: 25px; }
 .chat-time { color: var(--muted); font-size: 12px; white-space: nowrap; }
 .chat-preview { margin-top: 5px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 14px; }
 .pause-dot { display: inline-block; width: 8px; height: 8px; background: #f79009; border-radius: 50%; margin-right: 6px; }
-.chat-area { min-width: 0; display: flex; flex-direction: column; background: #efeaf7; }
+.chat-area { min-width: 0; min-height: 0; display: flex; flex-direction: column; background: #efeaf7; }
 .empty-state { margin: auto; text-align: center; color: var(--muted); padding: 30px; }
 .empty-state h2 { color: var(--text); }
 .quick-actions { width: min(660px, 100%); margin: 24px auto 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; text-align: left; }
