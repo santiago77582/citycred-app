@@ -68,6 +68,9 @@ h1 { margin: 20px 0 8px; font-size: 25px; }
 .secondary { border: 1px solid var(--border); background: white; border-radius: 10px; padding: 8px 10px; color: var(--text); }
 .secondary:hover { border-color: var(--brand); color: var(--brand); }
 .messages { flex: 1; overflow: auto; padding: 24px; display: flex; flex-direction: column; gap: 10px; }
+/* Los mensajes se apoyan abajo (como WhatsApp): con pocos mensajes no queda
+   un hueco en blanco arriba, y con muchos el scroll sigue funcionando igual. */
+.messages > .message:first-child { margin-top: auto; }
 .message { max-width: min(72%, 680px); padding: 10px 12px 7px; border-radius: 14px; box-shadow: 0 1px 1px rgba(16,24,40,.08); white-space: pre-wrap; overflow-wrap: anywhere; }
 .message.inbound { align-self: flex-start; background: var(--inbound); border-top-left-radius: 4px; }
 .message.outbound { align-self: flex-end; background: var(--outbound); border-top-right-radius: 4px; }
