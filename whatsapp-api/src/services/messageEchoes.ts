@@ -4,6 +4,7 @@ import {
   upsertContact,
   upsertConversation
 } from '../repository.js';
+import { humanReplyPauseUntil } from '../bot/humanPause.js';
 import { logger } from '../utils/logger.js';
 import { messageText } from './webhookMessage.js';
 
@@ -17,8 +18,6 @@ import { messageText } from './webhookMessage.js';
  *
  * Es inerte si Meta no envía esos campos: no rompe nada ni cambia el flujo normal.
  */
-
-const HUMAN_REPLY_PAUSE_MS = 5 * 60_000;
 
 type UnknownRecord = Record<string, unknown>;
 
@@ -56,7 +55,7 @@ export async function processMessageEchoes(value: UnknownRecord): Promise<number
 
     // Una respuesta manual desde el celular pausa el bot igual que desde el
     // panel, para que nunca conteste encima de una respuesta humana.
-    await setConversationBotPause(waId, new Date(Date.now() + HUMAN_REPLY_PAUSE_MS));
+    await setConversationBotPause(waId, humanReplyPauseUntil());
     registrados += 1;
   }
 

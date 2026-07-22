@@ -50,6 +50,7 @@ import { sendTextAndPersist } from './messages.js';
 import { metaAnalyticsRouter } from './metaAnalytics.js';
 import { operationsRouter } from './operations.js';
 import { templatesRouter } from './templates.js';
+import { humanReplyPauseUntil } from '../bot/humanPause.js';
 
 export const adminRouter = Router();
 
@@ -229,7 +230,7 @@ adminRouter.post('/api/messages/text', async (req, res) => {
   const waId = normalizePhone(input.to);
   const botPausedUntil = await setConversationBotPause(
     waId,
-    new Date(Date.now() + 5 * 60_000)
+    humanReplyPauseUntil()
   );
   await writeAuditEvent({
     actorUserId: req.adminUser?.userId ?? null,

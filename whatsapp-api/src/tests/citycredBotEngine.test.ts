@@ -25,8 +25,8 @@ test('inicia con la lista de entidades que atiende CityCred', () => {
   assert.equal(decision.nextStage, 'WAIT_ENTITY');
   assert.equal(decision.response?.kind, 'list');
   if (decision.response?.kind !== 'list') return;
-  // "Empleado Público RN" se retiró del menú por indicación de Santiago.
-  assert.equal(decision.response.sections[0]?.rows.length, 6);
+  // Sin "Fuerza Aérea" ni "Empleado Público RN": los retiró Santiago.
+  assert.equal(decision.response.sections[0]?.rows.length, 5);
   assert.equal(decision.scheduleFollowups, true);
 });
 

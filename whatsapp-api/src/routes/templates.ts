@@ -20,6 +20,7 @@ import {
   type WhatsappTemplate
 } from '../templateRepository.js';
 import { sendTemplateAndPersist } from './messages.js';
+import { humanReplyPauseUntil } from '../bot/humanPause.js';
 
 export const templatesRouter = Router();
 
@@ -189,7 +190,7 @@ templatesRouter.post('/:templateId/send', sendLimiter, async (req, res) => {
   });
   const botPausedUntil = await setConversationBotPause(
     outcome.payload.to,
-    new Date(Date.now() + 5 * 60_000)
+    humanReplyPauseUntil()
   );
   res.status(outcome.statusCode).json({
     ...outcome.payload,
