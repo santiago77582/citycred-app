@@ -1,3 +1,5 @@
+import { quoteTextForQuota } from '../quotes/botQuote.js';
+
 export type BotStage =
   | 'START'
   | 'WAIT_ENTITY'
@@ -204,7 +206,8 @@ function listPrompt(): BotResponse {
         { id: 'entity:air_force', title: 'Fuerza Aérea' },
         { id: 'entity:gendarmerie', title: 'Gendarmería' },
         { id: 'entity:coast_guard', title: 'Prefectura' },
-        { id: 'entity:public_rn', title: 'Empleado Público RN' },
+        // "Empleado Público RN" se retiró del menú por indicación de Santiago:
+        // no es una entidad que CityCred atienda con este producto.
         { id: 'entity:other', title: 'Otra entidad' }
       ]
     }]
@@ -357,7 +360,20 @@ export function decideCitycredBot(state: BotContactState, input: BotInbound): Bo
     const missing = [!profileName && 'nombre y apellido', !documentNumber && 'DNI'].filter(Boolean).join(' y ');
     return {
       nextStage: 'WAIT_IDENTITY',
-      response: { kind: 'text', body: `Perfecto, registré un cupo de $${quota.toLocaleString('es-AR')}. Ahora pasame ${missing}.` },
+      response: {
+        kind: 'text',
+        body: [
+          `Perfecto, registré un cupo de $${quota.toLocaleString('es-AR')}.`,
+          // Los montos salen SIEMPRE de la grilla. Si no se puede cotizar con
+          // certeza, `quoteTextForQuota` devuelve null y no se dice nada.
+          quoteTextForQuota({
+            entity,
+            personnelType: personnel ?? state.personnelType,
+            availableQuota: quota
+          }),
+          `Ahora pasame ${missing}.`
+        ].filter(Boolean).join('\n\n')
+      },
       patch: {
         entity,
         ...(personnel ? { personnelType: personnel as 'VOLUNTEER' | 'CAREER' } : {}),

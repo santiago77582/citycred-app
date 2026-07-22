@@ -20,12 +20,13 @@ function state(patch: Partial<BotContactState> = {}): BotContactState {
   };
 }
 
-test('inicia con una lista de las siete entidades', () => {
+test('inicia con la lista de entidades que atiende CityCred', () => {
   const decision = decideCitycredBot(state(), { text: 'hola' });
   assert.equal(decision.nextStage, 'WAIT_ENTITY');
   assert.equal(decision.response?.kind, 'list');
   if (decision.response?.kind !== 'list') return;
-  assert.equal(decision.response.sections[0]?.rows.length, 7);
+  // "Empleado Público RN" se retiró del menú por indicación de Santiago.
+  assert.equal(decision.response.sections[0]?.rows.length, 6);
   assert.equal(decision.scheduleFollowups, true);
 });
 
