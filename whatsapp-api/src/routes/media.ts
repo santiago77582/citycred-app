@@ -23,6 +23,7 @@ import {
   savePrivateTempUpload
 } from '../services/tempUpload.js';
 import { normalizePhone } from '../utils/phone.js';
+import { humanReplyPauseUntil } from '../bot/humanPause.js';
 
 export const mediaRouter = Router();
 
@@ -121,7 +122,7 @@ mediaRouter.post('/outbound/:waId', uploadLimiter, async (req, res) => {
     });
     const botPausedUntil = await setConversationBotPause(
       waId,
-      new Date(Date.now() + 5 * 60_000)
+      humanReplyPauseUntil()
     );
     res.status(outcome.statusCode).json({ ...outcome.payload, botPausedUntil });
   } finally {

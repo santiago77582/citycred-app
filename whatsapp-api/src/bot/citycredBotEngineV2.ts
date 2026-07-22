@@ -203,7 +203,8 @@ function listPrompt(): BotResponse {
       rows: [
         { id: 'entity:army', title: 'Ejército' },
         { id: 'entity:navy', title: 'Armada' },
-        { id: 'entity:air_force', title: 'Fuerza Aérea' },
+        // "Fuerza Aérea" y "Empleado Público RN" se retiraron del menú por
+        // indicación de Santiago: no son entidades que CityCred atienda acá.
         { id: 'entity:gendarmerie', title: 'Gendarmería' },
         { id: 'entity:coast_guard', title: 'Prefectura' },
         // "Empleado Público RN" se retiró del menú por indicación de Santiago:

@@ -85,6 +85,10 @@ const schema = z.object({
   CAMPAIGN_TIME_ZONE: timeZone.default('America/Argentina/Buenos_Aires'),
   CAMPAIGN_SEND_WINDOW_START_HOUR: z.coerce.number().int().min(0).max(22).default(9),
   CAMPAIGN_SEND_WINDOW_END_HOUR: z.coerce.number().int().min(1).max(23).default(18),
+  // Cuánto se frena el bot en una conversación después de que responde un
+  // humano (desde el panel o desde el celular). Regla de Santiago: cada vez
+  // que él habla, el bot se tiene que frenar. Por defecto, un día entero.
+  BOT_PAUSE_AFTER_HUMAN_MINUTES: z.coerce.number().int().min(1).max(10_080).default(1_440),
   OPERATIONS_SCHEDULER_ENABLED: booleanFlag,
   OPERATIONS_CHECK_INTERVAL_MINUTES: z.coerce.number().int().min(1).max(1_440).default(15),
   BACKUP_SCHEDULER_ENABLED: booleanFlag,
