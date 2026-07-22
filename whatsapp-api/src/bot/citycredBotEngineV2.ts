@@ -1,4 +1,5 @@
 import { quoteTextForQuota } from '../quotes/botQuote.js';
+import { detectarActividadNoAdmitida, hayContradiccion, MENSAJE_NO_ADMITIDA } from '../domain/actividadNoAdmitida.js';
 
 export type BotStage =
   | 'START'
@@ -97,11 +98,14 @@ function entityFrom(input: BotInbound): BotEntity | null {
     return ENTITY_IDS[input.interactiveId] ?? null;
   }
   const text = norm(input.text);
-  if (/\bejercito\b/.test(text)) return 'Ejército';
-  if (/\barmada\b|\bmarina\b/.test(text)) return 'Armada';
+  // Se aceptan las formas que usa la gente: "soy marino", "soy gendarme",
+  // "GNA", "PNA", con o sin tilde. Sin esto, un cliente valido quedaba sin
+  // identificar y el bot le volvia a preguntar lo mismo.
+  if (/\bejercito\b|\bejercit/.test(text)) return 'Ejército';
+  if (/\barmada\b|\bmarina\b|\bmarino\b|\bmarinero\b/.test(text)) return 'Armada';
   if (/fuerza aerea|\bfaa\b/.test(text)) return 'Fuerza Aérea';
-  if (/gendarmeria|\bgna\b/.test(text)) return 'Gendarmería';
-  if (/prefectura|\bpna\b/.test(text)) return 'Prefectura';
+  if (/gendarmer|\bgendarme\b|\bgna\b/.test(text)) return 'Gendarmería';
+  if (/prefectura|\bprefecto\b|\bpna\b/.test(text)) return 'Prefectura';
   if (/emplead[oa] public[oa]|provincia de rio negro|gobierno de rio negro|educacion rn/.test(text)) {
     return 'Empleado Público de Río Negro';
   }
@@ -247,6 +251,51 @@ export function decideCitycredBot(state: BotContactState, input: BotInbound): Bo
   }
   if (['HANDOFF', 'CLOSED', 'OUT_OF_SCOPE'].includes(state.stage)) {
     return { nextStage: state.stage, response: null, patch: {}, reason: 'terminal_stage', scheduleFollowups: false };
+  }
+
+  // FILTRO COMERCIAL: CityCred solo atiende Ejército, Armada, Gendarmería y
+  // Prefectura. Se evalúa ANTES de identificar la fuerza para no seguir
+  // pidiéndole recibos ni cupo a alguien que no califica.
+  if (!state.entity) {
+    if (hayContradiccion(input.text)) {
+      // Mencionó una fuerza admitida y una actividad que no lo está: lo revisa
+      // una persona, no se descarta ni se continúa solo.
+      return {
+        nextStage: 'HANDOFF',
+        response: {
+          kind: 'text',
+          body: 'Gracias por los datos. Dejo tu consulta con un asesor para confirmar tu situación antes de seguir.'
+        },
+        patch: {
+          commercialStatus: 'PENDING',
+          handoffReason: 'ACTIVIDAD_CONTRADICTORIA',
+          context: { ...state.context, actividadDetectada: 'contradictoria' }
+        },
+        reason: 'actividad_contradictoria',
+        scheduleFollowups: false
+      };
+    }
+
+    const noAdmitida = detectarActividadNoAdmitida(input.text);
+    if (noAdmitida) {
+      return {
+        nextStage: 'OUT_OF_SCOPE',
+        response: { kind: 'text', body: MENSAJE_NO_ADMITIDA },
+        patch: {
+          commercialStatus: 'NO_CALIFICA_ACTIVIDAD',
+          handoffReason: null,
+          context: {
+            ...state.context,
+            actividadDetectada: noAdmitida.actividad,
+            motivoDescarte: noAdmitida.motivo,
+            excluidoDeCampanias: true
+          }
+        },
+        reason: 'actividad_no_admitida',
+        // Sin seguimientos: no se le vuelve a ofrecer el crédito.
+        scheduleFollowups: false
+      };
+    }
   }
 
   const entity = (entityFrom(input) ?? state.entity) as BotEntity | null;

@@ -19,9 +19,10 @@ function texto(decision: ReturnType<typeof decideCitycredBot>): string {
 }
 
 /**
- * Caso real (22/07/2026): un cliente respondió "Policía de la provincia de
- * Buenos Aires" y el bot le repitió EXACTAMENTE el mismo saludo, quedando como
- * si se hubiera colgado. Nunca debe repetir el mismo texto.
+ * Caso real (22/07/2026): un cliente respondio algo que el bot no reconocio y
+ * le repitio EXACTAMENTE el mismo saludo, quedando como si se hubiera colgado.
+ * Nunca debe repetir el mismo texto ante una respuesta ambigua.
+ * (Las actividades NO admitidas se descartan antes: ver actividadNoAdmitida.)
  */
 test('no repite el saludo cuando no reconoce la entidad', () => {
   let estado = inicial();
@@ -30,7 +31,7 @@ test('no repite el saludo cuando no reconoce la entidad', () => {
   const textoSaludo = texto(saludo);
   estado = { ...estado, stage: saludo.nextStage, context: saludo.patch.context ?? estado.context } as State;
 
-  const segunda = decideCitycredBot(estado, { text: 'Policía de la provincia de buenos aires' });
+  const segunda = decideCitycredBot(estado, { text: 'trabajo en seguridad' });
   const textoSegunda = texto(segunda);
 
   assert.notEqual(textoSegunda, textoSaludo, 'el bot no debe repetir el mismo mensaje');
@@ -39,11 +40,11 @@ test('no repite el saludo cuando no reconoce la entidad', () => {
 
 test('tras dos intentos sin identificar la entidad, pasa a un asesor', () => {
   let estado = inicial();
-  for (const mensaje of ['hola', 'policia bonaerense']) {
+  for (const mensaje of ['hola', 'soy de la fuerza']) {
     const d = decideCitycredBot(estado, { text: mensaje });
     estado = { ...estado, stage: d.nextStage, context: d.patch.context ?? estado.context } as State;
   }
-  const tercera = decideCitycredBot(estado, { text: 'soy policia de la provincia igual' });
+  const tercera = decideCitycredBot(estado, { text: 'y bueno, ahi ando' });
   assert.equal(tercera.nextStage, 'HANDOFF');
   assert.equal(tercera.patch.handoffReason, 'ENTITY_NOT_RECOGNIZED');
   assert.equal(tercera.scheduleFollowups, false);
