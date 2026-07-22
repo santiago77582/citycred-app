@@ -251,7 +251,57 @@ export function decideCitycredBot(state: BotContactState, input: BotInbound): Bo
 
   const entity = (entityFrom(input) ?? state.entity) as BotEntity | null;
   if (!entity) {
-    return { nextStage: 'WAIT_ENTITY', response: listPrompt(), patch: {}, reason: 'missing_entity', scheduleFollowups: true };
+    // El cliente ya contestó algo que no pudimos reconocer (por ejemplo, una
+    // fuerza provincial). NUNCA repetir el mismo saludo: queda robótico y el
+    // cliente cree que el bot se colgó. Se reformula una vez y, si sigue sin
+    // entenderse, pasa a un asesor.
+    const intentos = typeof state.context.entityAttempts === 'number'
+      ? state.context.entityAttempts
+      : 0;
+
+    if (intentos === 0) {
+      return {
+        nextStage: 'WAIT_ENTITY',
+        response: listPrompt(),
+        patch: { context: { ...state.context, entityAttempts: 1 } },
+        reason: 'missing_entity',
+        scheduleFollowups: true
+      };
+    }
+
+    if (intentos === 1) {
+      return {
+        nextStage: 'WAIT_ENTITY',
+        response: {
+          kind: 'list',
+          body: 'Perdón, no pude identificar tu entidad. Trabajamos con estas fuerzas: '
+            + 'elegí la tuya de la lista. Si no está, tocá “Otra entidad” y te paso con un asesor.',
+          button: 'Elegir opción',
+          sections: listPrompt().kind === 'list'
+            ? (listPrompt() as { sections: Array<{ title: string; rows: Array<{ id: string; title: string }> }> }).sections
+            : []
+        },
+        patch: { context: { ...state.context, entityAttempts: 2 } },
+        reason: 'entity_not_recognized',
+        scheduleFollowups: true
+      };
+    }
+
+    // Dos intentos sin poder identificarla: lo toma una persona.
+    return {
+      nextStage: 'HANDOFF',
+      response: {
+        kind: 'text',
+        body: 'No logré identificar tu entidad. Dejo tu consulta para que la siga un asesor y te confirme si podemos ayudarte.'
+      },
+      patch: {
+        context: { ...state.context, entityAttempts: 3 },
+        commercialStatus: 'PENDING',
+        handoffReason: 'ENTITY_NOT_RECOGNIZED'
+      },
+      reason: 'entity_not_recognized_handoff',
+      scheduleFollowups: false
+    };
   }
   if (entity === 'Otra entidad') {
     return {
