@@ -1,4 +1,4 @@
-import { quoteTextForQuota } from '../quotes/botQuote.js';
+import { quoteListForQuota } from '../quotes/botQuote.js';
 import { detectarActividadNoAdmitida, hayContradiccion, MENSAJE_NO_ADMITIDA } from '../domain/actividadNoAdmitida.js';
 
 export type BotStage =
@@ -457,32 +457,52 @@ export function decideCitycredBot(state: BotContactState, input: BotInbound): Bo
   const profileName = detectedName ?? state.profileName;
   const documentNumber = detectedDni ?? state.documentNumber;
   if (!profileName || !documentNumber) {
+    const basePatch = {
+      entity,
+      ...(personnel ? { personnelType: personnel as 'VOLUNTEER' | 'CAREER' } : {}),
+      seniorityRange: 'ONE_YEAR_OR_MORE' as const,
+      availableQuota: quota,
+      ...(detectedName ? { profileName: detectedName } : {}),
+      ...(detectedDni ? { documentNumber: detectedDni } : {}),
+      commercialStatus: 'INTERESTED'
+    };
+
+    // Primero mostramos las opciones como MENÚ DESPLEGABLE (solo neto y cuota,
+    // nunca el monto solicitado). Recién después pedimos el DNI. Así no se
+    // amontona todo en un mensaje confuso.
+    const yaMostroOpciones = state.context.optionsShown === true;
+    const lista = yaMostroOpciones
+      ? null
+      : quoteListForQuota({
+          entity,
+          personnelType: personnel ?? state.personnelType,
+          availableQuota: quota
+        });
+
+    if (lista) {
+      return {
+        nextStage: 'WAIT_IDENTITY',
+        response: {
+          kind: 'list',
+          body: `Perfecto, registré un cupo de $${quota.toLocaleString('es-AR')}.\n\n${lista.body}`,
+          button: lista.button,
+          sections: [{ title: 'Opciones', rows: lista.rows }]
+        },
+        patch: { ...basePatch, context: { ...state.context, optionsShown: true } },
+        reason: 'quote_options_shown',
+        scheduleFollowups: true
+      };
+    }
+
+    // Ya se mostraron las opciones (o no había para mostrar): pedimos el DNI.
     const missing = [!profileName && 'nombre y apellido', !documentNumber && 'DNI'].filter(Boolean).join(' y ');
+    const encabezado = yaMostroOpciones
+      ? '¡Buenísimo!'
+      : `Perfecto, registré un cupo de $${quota.toLocaleString('es-AR')}.`;
     return {
       nextStage: 'WAIT_IDENTITY',
-      response: {
-        kind: 'text',
-        body: [
-          `Perfecto, registré un cupo de $${quota.toLocaleString('es-AR')}.`,
-          // Los montos salen SIEMPRE de la grilla. Si no se puede cotizar con
-          // certeza, `quoteTextForQuota` devuelve null y no se dice nada.
-          quoteTextForQuota({
-            entity,
-            personnelType: personnel ?? state.personnelType,
-            availableQuota: quota
-          }),
-          `Ahora pasame ${missing}.`
-        ].filter(Boolean).join('\n\n')
-      },
-      patch: {
-        entity,
-        ...(personnel ? { personnelType: personnel as 'VOLUNTEER' | 'CAREER' } : {}),
-        seniorityRange: 'ONE_YEAR_OR_MORE',
-        availableQuota: quota,
-        ...(detectedName ? { profileName: detectedName } : {}),
-        ...(detectedDni ? { documentNumber: detectedDni } : {}),
-        commercialStatus: 'INTERESTED'
-      },
+      response: { kind: 'text', body: `${encabezado} Para avanzar pasame ${missing}.` },
+      patch: basePatch,
       reason: 'missing_identity',
       scheduleFollowups: true
     };

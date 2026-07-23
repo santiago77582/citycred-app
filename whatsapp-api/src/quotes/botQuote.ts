@@ -16,7 +16,8 @@ export type BotQuoteOption = {
   netAmount: number;
 };
 
-const MAX_OPCIONES = 3;
+// WhatsApp permite hasta 10 filas en una lista desplegable.
+const MAX_OPCIONES = 8;
 
 function pesos(value: number): string {
   return `$${value.toLocaleString('es-AR')}`;
@@ -63,6 +64,43 @@ export function quoteOptionsForQuota(params: {
   }
 
   return opciones;
+}
+
+export type QuoteList = {
+  body: string;
+  button: string;
+  rows: Array<{ id: string; title: string; description: string }>;
+};
+
+/**
+ * Lista desplegable de opciones para el cliente.
+ *
+ * REGLA DE SANTIAGO: cada opción muestra SOLO el neto (lo que recibe en mano)
+ * y la cuota. El monto solicitado de la grilla NUNCA se muestra: confunde.
+ *
+ * Devuelve `null` si no se puede cotizar (el bot sigue con su flujo de siempre).
+ */
+export function quoteListForQuota(params: {
+  entity: string | null;
+  personnelType: string | null;
+  availableQuota: number | null;
+}): QuoteList | null {
+  const opciones = quoteOptionsForQuota(params);
+  if (opciones.length === 0) return null;
+
+  const rows = opciones.map((o) => ({
+    id: `quote:${o.termMonths}`,
+    // Título corto (WhatsApp limita a 24): plazo + cuota.
+    title: `${o.termMonths} cuotas de ${pesos(o.monthlyInstallment)}`.slice(0, 24),
+    // Descripción: lo que recibe en mano. Nunca el monto solicitado.
+    description: `Recibís ${pesos(o.netAmount)} en mano`.slice(0, 72)
+  }));
+
+  return {
+    body: 'Estas son las opciones para vos. Tocá "Ver opciones" y elegí la que te sirva 👇',
+    button: 'Ver opciones',
+    rows
+  };
 }
 
 /** Texto listo para mandarle al cliente, o `null` si no se puede cotizar. */
