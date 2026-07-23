@@ -5,6 +5,7 @@ import { getBotRuntimeSettings, getBotStateByWaId, updateBotRuntimeSettings } fr
 import { decideCitycredBot } from '../bot/citycredBotEngineV2.js';
 import { listBotFollowups } from '../bot/followupRepository.js';
 import { listBotInboundJobs } from '../bot/inboundJobRepository.js';
+import { analizarBlindaje } from '../domain/blindaje.js';
 import { normalizePhone } from '../utils/phone.js';
 
 export const botRouter = Router();
@@ -63,6 +64,15 @@ botRouter.post('/preview', async (req, res) => {
     decision: decideCitycredBot(current.state, input),
     sent: false
   });
+});
+
+/**
+ * Blindaje: revisa un texto antes de mandarlo y devuelve su riesgo para la
+ * cuenta. Es de solo lectura, no envía ni guarda nada.
+ */
+botRouter.post('/blindaje', (req, res) => {
+  const input = z.object({ text: z.string().max(10000) }).parse(req.body);
+  res.json({ blindaje: analizarBlindaje(input.text) });
 });
 
 botRouter.get('/followups', async (req, res) => {

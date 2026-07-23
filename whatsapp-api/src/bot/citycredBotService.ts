@@ -1,5 +1,7 @@
 import { sendAdvancedAndPersist } from '../services/outboundAdvanced.js';
 import { enriquecerEntrada } from '../ai/enriquecerEntrada.js';
+import { analizarBlindaje, bloqueaEnvioAutomatico } from '../domain/blindaje.js';
+import { logger } from '../utils/logger.js';
 import { messageText } from '../services/webhookMessage.js';
 import {
   applyBotDecision,
@@ -101,6 +103,21 @@ export async function processCitycredBotInbound(params: {
     messageType: type,
     hasMedia: ['image', 'audio', 'video', 'document', 'sticker'].includes(type ?? '')
   });
+  // BLINDAJE: red de seguridad final. Los textos del bot ya están revisados,
+  // pero si alguna vez se edita uno y queda con una frase que pone en riesgo la
+  // cuenta, no sale solo: se corta y lo atiende una persona. Antes de guardar el
+  // avance, así la conversación no queda descolgada en una etapa que no contestó.
+  if (decision.response) {
+    const blindaje = analizarBlindaje(decision.response.body);
+    if (bloqueaEnvioAutomatico(blindaje)) {
+      logger.error(
+        { waId: params.waId, puntaje: blindaje.puntaje, hallazgos: blindaje.hallazgos.map((h) => h.regla) },
+        'Blindaje frenó una respuesta automática del bot'
+      );
+      return { processed: false, reason: 'blindaje_bloqueo', nextStage: current.state.stage };
+    }
+  }
+
   await applyBotDecision({
     contactId: current.contactId,
     conversationId: current.conversationId,
