@@ -3,7 +3,9 @@ import { getBotRuntimeSettings } from '../bot/botStateRepository.js';
 import { checkDatabase } from '../db.js';
 import { endpointOptions } from '../flows/endpointOptions.js';
 import {
+  aiConfigStatus,
   config,
+  isAiEnabled,
   isMetaSendingConfigured,
   isMetaWebhookConfigured,
   metaConfigStatus
@@ -56,6 +58,10 @@ healthRouter.get('/health', async (_req, res) => {
       webhookConfigurado: isMetaWebhookConfigured(),
       variables,
       faltantes
+    },
+    ia: {
+      encendida: isAiEnabled(),
+      variables: aiConfigStatus()
     }
   });
 });

@@ -1,4 +1,5 @@
 import { sendAdvancedAndPersist } from '../services/outboundAdvanced.js';
+import { enriquecerEntrada } from '../ai/enriquecerEntrada.js';
 import { messageText } from '../services/webhookMessage.js';
 import {
   applyBotDecision,
@@ -72,8 +73,30 @@ export async function processCitycredBotInbound(params: {
   }
 
   const type = typeof params.message.type === 'string' ? params.message.type : null;
+
+  // La IA transcribe los audios antes de que el bot los lea. Si está apagada o
+  // falla, `enriquecerEntrada` devuelve el texto de siempre: nunca rompe nada.
+  const enriquecida = await enriquecerEntrada(params.message);
+
+  // Un audio que no se pudo transcribir NO se responde a ciegas: se pide que lo
+  // repita o lo escriba, sin inventar lo que dijo.
+  if (enriquecida.audioIlegible) {
+    const outcome = await sendAdvancedAndPersist({
+      to: params.waId,
+      type: 'bot_text',
+      text: 'Perdón, no llegué a escuchar bien el audio. ¿Me lo repetís o me lo escribís?',
+      message: { type: 'text', text: { body: 'audio_ilegible' } }
+    });
+    return {
+      processed: true,
+      reason: 'audio_ilegible',
+      nextStage: current.state.stage,
+      outboundMessageId: outcome.payload.messageId
+    };
+  }
+
   const decision = decideCitycredBot(current.state, {
-    text: messageText(params.message),
+    text: enriquecida.text,
     interactiveId: extractInteractiveId(params.message),
     messageType: type,
     hasMedia: ['image', 'audio', 'video', 'document', 'sticker'].includes(type ?? '')

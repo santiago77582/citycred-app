@@ -85,6 +85,13 @@ const schema = z.object({
   CAMPAIGN_TIME_ZONE: timeZone.default('America/Argentina/Buenos_Aires'),
   CAMPAIGN_SEND_WINDOW_START_HOUR: z.coerce.number().int().min(0).max(22).default(9),
   CAMPAIGN_SEND_WINDOW_END_HOUR: z.coerce.number().int().min(1).max(23).default(18),
+  // Inteligencia artificial (OpenAI). APAGADA por defecto: aunque la clave esté
+  // cargada, la IA no se usa hasta encender AI_ENABLED explícitamente.
+  OPENAI_API_KEY: optionalSecret,
+  AI_ENABLED: booleanFlag,
+  AI_TEXT_MODEL: z.string().min(1).default('gpt-4o-mini'),
+  AI_TRANSCRIBE_MODEL: z.string().min(1).default('gpt-4o-mini-transcribe'),
+  AI_REQUEST_TIMEOUT_MS: z.coerce.number().int().min(1_000).max(120_000).default(20_000),
   // Cuánto se frena el bot en una conversación después de que responde un
   // humano (desde el panel o desde el celular). Regla de Santiago: cada vez
   // que él habla, el bot se tiene que frenar. Por defecto, un día entero.
@@ -143,6 +150,21 @@ export function isMetaSendingConfigured(): boolean {
 
 export function isMetaWebhookConfigured(): boolean {
   return Boolean(config.META_APP_SECRET && config.WHATSAPP_VERIFY_TOKEN);
+}
+
+/**
+ * La IA se usa SOLO si está encendida Y hay clave. Sin las dos cosas, el módulo
+ * queda inerte y el bot sigue funcionando con sus reglas de siempre.
+ */
+export function isAiEnabled(): boolean {
+  return Boolean(config.AI_ENABLED && config.OPENAI_API_KEY);
+}
+
+export function aiConfigStatus(): Record<string, boolean> {
+  return {
+    AI_ENABLED: config.AI_ENABLED,
+    OPENAI_API_KEY: Boolean(config.OPENAI_API_KEY)
+  };
 }
 
 export function metaConfigStatus(): Record<string, boolean> {
