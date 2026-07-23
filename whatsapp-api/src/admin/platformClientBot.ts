@@ -119,6 +119,34 @@ export const PLATFORM_BOT_JS = String.raw`
     }).catch(function () {});
   });
 
+  var BLINDAJE_PILL = { SEGURO: 'on', REVISAR: '', RIESGO_ALTO: 'off' };
+  var BLINDAJE_TEXTO = { SEGURO: 'Seguro', REVISAR: 'Revisar', RIESGO_ALTO: 'No enviar' };
+
+  function blindajeCard(hallazgo) {
+    return '<div class="list-item">'
+      + '<strong>' + P.escapeHtml(hallazgo.regla) + ' · ' + P.escapeHtml(hallazgo.gravedad) + '</strong>'
+      + '<div class="muted">Detectado: “' + P.escapeHtml(hallazgo.fragmento) + '”</div>'
+      + '<div class="muted">' + P.escapeHtml(hallazgo.motivo) + '</div>'
+      + '<div>✅ ' + P.escapeHtml(hallazgo.sugerencia) + '</div>'
+      + '</div>';
+  }
+
+  E('blindajeForm').addEventListener('submit', function (event) {
+    event.preventDefault();
+    P.guarded(async function () {
+      var data = await P.api('/bot/blindaje', {
+        method: 'POST',
+        body: JSON.stringify({ text: V('blindajeText') })
+      });
+      var r = data.blindaje;
+      E('blindajePill').textContent = BLINDAJE_TEXTO[r.nivel] + ' · ' + r.puntaje + '/100';
+      E('blindajePill').className = 'status-pill ' + BLINDAJE_PILL[r.nivel];
+      E('blindajeResult').innerHTML = '<div class="notice' + (r.nivel === 'RIESGO_ALTO' ? ' danger' : '') + '">'
+        + P.escapeHtml(r.resumen) + '</div>'
+        + (r.hallazgos || []).map(blindajeCard).join('');
+    }).catch(function () {});
+  });
+
   E('followupStatusFilter').addEventListener('change', function () { P.guarded(loadFollowups).catch(function () {}); });
   E('refreshOverview').addEventListener('click', function () { P.guarded(loadOverview).catch(function () {}); });
   E('refreshBot').addEventListener('click', function () { P.guarded(loadBot).catch(function () {}); });

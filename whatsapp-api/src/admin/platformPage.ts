@@ -72,6 +72,14 @@ export const PLATFORM_HTML = String.raw`<!doctype html>
           </form>
         </div>
 
+        <form id="blindajeForm" class="card wide">
+          <div class="card-head"><h2>Blindaje: revisar antes de enviar</h2><span id="blindajePill" class="status-pill">Sin analizar</span></div>
+          <div class="muted" style="margin-bottom:10px">Pegá cualquier mensaje y fijate si tiene frases que puedan costarte calidad, bloqueos o la insignia verde. No envía nada.</div>
+          <label class="wide"><textarea id="blindajeText" rows="4" placeholder="Pegá acá el mensaje que querés mandar..." required></textarea></label>
+          <div class="actions"><button class="secondary" type="submit">Analizar riesgo</button></div>
+          <div id="blindajeResult"></div>
+        </form>
+
         <section class="card wide">
           <div class="card-head"><h2>Próximos seguimientos</h2><select id="followupStatusFilter"><option value="PENDING">Pendientes</option><option value="PROCESSING">Procesando</option><option value="SENT">Enviados</option><option value="SKIPPED">Omitidos</option><option value="CANCELLED">Cancelados</option><option value="FAILED">Fallidos</option><option value="">Todos</option></select></div>
           <div id="followupsTable" class="table-wrap"></div>
