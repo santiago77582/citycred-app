@@ -1,4 +1,5 @@
-import { quoteListForQuota } from '../quotes/botQuote.js';
+import { quoteListForQuota, quoteOptionsForQuota } from '../quotes/botQuote.js';
+import { CIERRE_DOCUMENTACION, DOCUMENTACION_AUTORIZADO, instruccionesAutorizacion } from '../domain/autorizacionCupo.js';
 import { detectarActividadNoAdmitida, hayContradiccion, MENSAJE_NO_ADMITIDA } from '../domain/actividadNoAdmitida.js';
 
 export type BotStage =
@@ -7,6 +8,8 @@ export type BotStage =
   | 'WAIT_PERSONNEL_TYPE'
   | 'WAIT_SENIORITY'
   | 'WAIT_QUOTA'
+  | 'WAIT_QUOTE_CHOICE'
+  | 'WAIT_AUTHORIZATION'
   | 'WAIT_IDENTITY'
   | 'WAIT_DOCUMENTS'
   | 'HANDOFF'
@@ -195,6 +198,29 @@ function wantsOptOut(text: string | null): boolean {
 
 function asksHuman(text: string | null): boolean {
   return /hablar con (una persona|un asesor)|asesor humano|llamame|me pueden llamar|no entiendo nada/.test(norm(text));
+}
+
+
+/**
+ * Detecta qué plazo eligió el cliente en el desplegable (id `quote:36`) o si lo
+ * escribió a mano ("36 cuotas"). Devuelve la opción REAL de la grilla.
+ */
+function choiceFrom(
+  input: BotInbound,
+  params: { entity: string | null; personnelType: string | null; availableQuota: number | null }
+): { termMonths: number; monthlyInstallment: number; netAmount: number } | null {
+  let term: number | null = null;
+  const id = input.interactiveId ?? '';
+  if (id.startsWith('quote:')) term = Number(id.slice('quote:'.length));
+  if (term === null || !Number.isFinite(term)) {
+    const m = norm(input.text).match(/(\d{1,2})\s*(?:cuotas|meses)/);
+    if (m?.[1]) term = Number(m[1]);
+  }
+  if (term === null || !Number.isFinite(term)) return null;
+
+  // El monto sale de la grilla, nunca de lo que escriba el cliente.
+  const opciones = quoteOptionsForQuota(params);
+  return opciones.find((o) => o.termMonths === term) ?? null;
 }
 
 function listPrompt(): BotResponse {
@@ -452,39 +478,29 @@ export function decideCitycredBot(state: BotContactState, input: BotInbound): Bo
     };
   }
 
-  const detectedName = nameFrom(input.text);
-  const detectedDni = dniFrom(input.text);
-  const profileName = detectedName ?? state.profileName;
-  const documentNumber = detectedDni ?? state.documentNumber;
-  if (!profileName || !documentNumber) {
-    const basePatch = {
+  const basePatch = {
+    entity,
+    ...(personnel ? { personnelType: personnel as 'VOLUNTEER' | 'CAREER' } : {}),
+    seniorityRange: 'ONE_YEAR_OR_MORE' as const,
+    availableQuota: quota,
+    commercialStatus: 'INTERESTED'
+  };
+
+  // --- PASO 4: MOSTRAR OPCIONES EN DESPLEGABLE ---
+  // Regla de Santiago: hasta acá NO se le pide NINGÚN dato personal. Solo el
+  // cupo. Las opciones muestran el neto y la cuota; el monto solicitado nunca.
+  if (state.context.optionsShown !== true) {
+    const lista = quoteListForQuota({
       entity,
-      ...(personnel ? { personnelType: personnel as 'VOLUNTEER' | 'CAREER' } : {}),
-      seniorityRange: 'ONE_YEAR_OR_MORE' as const,
-      availableQuota: quota,
-      ...(detectedName ? { profileName: detectedName } : {}),
-      ...(detectedDni ? { documentNumber: detectedDni } : {}),
-      commercialStatus: 'INTERESTED'
-    };
-
-    // Primero mostramos las opciones como MENÚ DESPLEGABLE (solo neto y cuota,
-    // nunca el monto solicitado). Recién después pedimos el DNI. Así no se
-    // amontona todo en un mensaje confuso.
-    const yaMostroOpciones = state.context.optionsShown === true;
-    const lista = yaMostroOpciones
-      ? null
-      : quoteListForQuota({
-          entity,
-          personnelType: personnel ?? state.personnelType,
-          availableQuota: quota
-        });
-
+      personnelType: personnel ?? state.personnelType,
+      availableQuota: quota
+    });
     if (lista) {
       return {
-        nextStage: 'WAIT_IDENTITY',
+        nextStage: 'WAIT_QUOTE_CHOICE',
         response: {
           kind: 'list',
-          body: `Perfecto, registré un cupo de $${quota.toLocaleString('es-AR')}.\n\n${lista.body}`,
+          body: `Perfecto, registré tu cupo de $${quota.toLocaleString('es-AR')}.\n\n${lista.body}`,
           button: lista.button,
           sections: [{ title: 'Opciones', rows: lista.rows }]
         },
@@ -494,64 +510,111 @@ export function decideCitycredBot(state: BotContactState, input: BotInbound): Bo
       };
     }
 
-    // Ya se mostraron las opciones (o no había para mostrar): pedimos el DNI.
-    const missing = [!profileName && 'nombre y apellido', !documentNumber && 'DNI'].filter(Boolean).join(' y ');
-    const encabezado = yaMostroOpciones
-      ? '¡Buenísimo!'
-      : `Perfecto, registré un cupo de $${quota.toLocaleString('es-AR')}.`;
+    // Sin opciones para ese cupo (no llega al mínimo de la grilla). Se avisa y
+    // se corta: no se le pide documentación ni se lo hace avanzar en falso.
     return {
-      nextStage: 'WAIT_IDENTITY',
-      response: { kind: 'text', body: `${encabezado} Para avanzar pasame ${missing}.` },
-      patch: basePatch,
-      reason: 'missing_identity',
+      nextStage: 'HANDOFF',
+      response: {
+        kind: 'text',
+        body: `Registré tu cupo de $${quota.toLocaleString('es-AR')}. `
+          + 'Con ese monto no tenemos opciones disponibles por el momento. '
+          + 'Si tu cupo cambia, escribime y lo vemos. 😊'
+      },
+      patch: { ...basePatch, commercialStatus: 'PENDING', handoffReason: 'CUPO_INSUFICIENTE' },
+      reason: 'cupo_insuficiente',
+      scheduleFollowups: false
+    };
+  }
+
+  // --- PASO 5: EL CLIENTE ELIGIÓ UN PLAZO ---
+  // Se le confirma lo elegido y se le explica cómo autorizar el cupo.
+  const eleccion = choiceFrom(input, {
+    entity,
+    personnelType: personnel ?? state.personnelType,
+    availableQuota: quota
+  });
+  if (eleccion && state.context.authorizationSent !== true) {
+    const instrucciones = instruccionesAutorizacion(entity);
+    const confirmacion = `¡Buenísimo! Elegiste ${eleccion.termMonths} cuotas de `
+      + `$${eleccion.monthlyInstallment.toLocaleString('es-AR')}. `
+      + `Recibís $${eleccion.netAmount.toLocaleString('es-AR')} en mano.`;
+
+    if (!instrucciones) {
+      return {
+        nextStage: 'HANDOFF',
+        response: { kind: 'text', body: `${confirmacion}\n\nTe paso con un asesor para seguir.` },
+        patch: { ...basePatch, handoffReason: 'SIN_INSTRUCCIONES_FUERZA' },
+        reason: 'choice_without_instructions',
+        scheduleFollowups: false
+      };
+    }
+    return {
+      nextStage: 'WAIT_AUTHORIZATION',
+      response: { kind: 'text', body: `${confirmacion}\n\n${instrucciones}` },
+      patch: {
+        ...basePatch,
+        context: {
+          ...state.context,
+          authorizationSent: true,
+          chosenTerm: eleccion.termMonths,
+          chosenNet: eleccion.netAmount,
+          chosenInstallment: eleccion.monthlyInstallment
+        }
+      },
+      reason: 'authorization_instructions_sent',
       scheduleFollowups: true
     };
   }
 
+  // --- PASO 6: YA AUTORIZÓ EL CUPO ---
+  // Recién acá se pide documentación. Nunca antes.
+  const profileName = nameFrom(input.text) ?? state.profileName;
+  const documentNumber = dniFrom(input.text) ?? state.documentNumber;
   const docs = { ...((state.context.documents as Record<string, boolean> | undefined) ?? {}) };
   const kind = documentKind(input.text);
-  const pendingLabel = state.context.unlabeledMediaPending === true;
-  if (kind && (input.hasMedia || pendingLabel || kind === 'CBU')) docs[kind] = true;
+  if (kind) docs[kind] = true;
   const email = emailFrom(input.text) ?? (typeof state.context.email === 'string' ? state.context.email : null);
 
-  if (input.hasMedia && !kind) {
+  // Si todavía no se pidió la documentación, se pide una sola vez.
+  if (state.context.docsRequested !== true) {
     return {
       nextStage: 'WAIT_DOCUMENTS',
-      response: { kind: 'text', body: 'Recibí el archivo. Decime si es recibo, DNI frente, DNI dorso, CBU, certificado o comprobante de cupo.' },
+      response: { kind: 'text', body: DOCUMENTACION_AUTORIZADO },
       patch: {
-        profileName,
-        documentNumber,
-        context: context(state, { documents: docs, email, unlabeledMediaPending: true }),
+        ...(profileName ? { profileName } : {}),
+        ...(documentNumber ? { documentNumber } : {}),
+        context: context(state, { documents: docs, email, docsRequested: true }),
         commercialStatus: 'DOCUMENTATION_PENDING'
       },
-      reason: 'unlabeled_document',
+      reason: 'documentation_requested',
       scheduleFollowups: true
     };
   }
 
-  const missingDocs = ['PAYSLIP', 'DNI_FRONT', 'DNI_BACK', 'CBU'].filter((item) => docs[item] !== true);
-  if (missingDocs.length || !email) {
+  // Llegó un archivo: se acusa recibo sin interrogar al cliente sobre qué es.
+  // (La lectura automática del documento queda para cuando la IA esté activa.)
+  if (input.hasMedia) {
     return {
       nextStage: 'WAIT_DOCUMENTS',
-      response: { kind: 'text', body: 'Para continuar necesito: último recibo, DNI frente y dorso, CBU Banco Nación y correo. El comprobante de cupo se guarda aparte y no reemplaza esos documentos.' },
+      response: { kind: 'text', body: 'Gracias, recibí el archivo. Ahí lo reviso. 😊' },
       patch: {
-        profileName,
-        documentNumber,
-        context: context(state, { documents: docs, email, unlabeledMediaPending: false }),
+        ...(profileName ? { profileName } : {}),
+        ...(documentNumber ? { documentNumber } : {}),
+        context: context(state, { documents: docs, email }),
         commercialStatus: 'DOCUMENTATION_PENDING'
       },
-      reason: 'missing_documents',
+      reason: 'document_received',
       scheduleFollowups: true
     };
   }
 
   return {
     nextStage: 'HANDOFF',
-    response: { kind: 'text', body: 'Perfecto. Registré la documentación. Un asesor la va a revisar y te confirma las opciones; esto todavía no significa aprobación.' },
+    response: { kind: 'text', body: CIERRE_DOCUMENTACION },
     patch: {
-      profileName,
-      documentNumber,
-      context: context(state, { documents: docs, email, documentationComplete: true, unlabeledMediaPending: false }),
+      ...(profileName ? { profileName } : {}),
+      ...(documentNumber ? { documentNumber } : {}),
+      context: context(state, { documents: docs, email, documentationComplete: true }),
       commercialStatus: 'UNDER_REVIEW',
       handoffReason: 'DOCUMENTATION_COMPLETE'
     },
