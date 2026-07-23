@@ -47,7 +47,20 @@ test('no vuelve a preguntar datos ya guardados', () => {
   }), { text: '$85.000' });
   assert.equal(decision.nextStage, 'WAIT_IDENTITY');
   assert.equal(decision.patch.availableQuota, 85000);
-  assert.match(decision.response?.body ?? '', /nombre y apellido y DNI/);
+  // Al registrar el cupo se muestran las opciones como desplegable; el DNI se
+  // pide en el paso siguiente (no se amontona todo en un mensaje).
+  assert.equal(decision.response?.kind, 'list');
+
+  // Segundo mensaje: ya con las opciones mostradas, pide nombre y DNI.
+  const luego = decideCitycredBot(state({
+    stage: 'WAIT_IDENTITY',
+    entity: 'Ejército',
+    personnelType: 'CAREER',
+    seniorityRange: 'ONE_YEAR_OR_MORE',
+    availableQuota: 85000,
+    context: { optionsShown: true }
+  }), { interactiveId: 'quote:24', text: null });
+  assert.match(luego.response?.body ?? '', /nombre y apellido y DNI/);
 });
 
 test('un DNI posterior se guarda sin reemplazar el cupo ya registrado', () => {

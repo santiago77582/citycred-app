@@ -58,12 +58,17 @@ test('el bot informa las cuotas al registrar el cupo', () => {
     },
     { text: '150000', messageType: 'text', hasMedia: false }
   );
-  assert.equal(decision.response?.kind, 'text');
-  const body = decision.response?.kind === 'text' ? decision.response.body : '';
-  assert.match(body, /registré un cupo de \$150\.000/);
-  assert.match(body, /podés llevarte hasta/);
-  assert.match(body, /sujetos a aprobación/);
-  assert.match(body, /pasame nombre y apellido y DNI/);
+  // Las opciones se muestran como MENÚ DESPLEGABLE, no como texto amontonado.
+  assert.equal(decision.response?.kind, 'list');
+  if (decision.response?.kind !== 'list') return;
+  assert.match(decision.response.body, /registré un cupo de \$150\.000/);
+  const rows = decision.response.sections[0]?.rows ?? [];
+  assert.ok(rows.length > 0, 'debe haber opciones en el desplegable');
+  // Cada opción muestra SOLO cuota y neto. El monto solicitado NUNCA aparece.
+  for (const row of rows) {
+    assert.match(row.title, /cuotas de \$/);
+    assert.match(String(row.description), /Recibís \$/);
+  }
 });
 
 test('con cupo insuficiente el bot sigue como siempre, sin cotizar', () => {
@@ -96,4 +101,29 @@ test('el menú ya no ofrece Empleado Público de Río Negro', () => {
   assert.ok(titulos.includes('Ejército'));
   assert.ok(titulos.includes('Prefectura'));
   assert.ok(!titulos.some((t) => /Río Negro|RN/.test(t)));
+});
+
+test('el desplegable NUNCA muestra el monto solicitado, solo neto y cuota', () => {
+  const decision = decideCitycredBot(
+    {
+      stage: 'WAIT_QUOTA', entity: 'Ejército', personnelType: 'VOLUNTEER',
+      seniorityRange: 'ONE_YEAR_OR_MORE', availableQuota: null, profileName: null,
+      documentNumber: null, commercialStatus: 'NEW', context: {}
+    },
+    { text: '150000', messageType: 'text', hasMedia: false }
+  );
+  assert.equal(decision.response?.kind, 'list');
+  if (decision.response?.kind !== 'list') return;
+
+  // El "solicitado" que se llevaria (p. ej. ~$1.418.000 en 24 cuotas) NO debe
+  // aparecer en ningun lado del desplegable.
+  const opciones = quoteOptionsForQuota({
+    entity: 'Ejército', personnelType: 'VOLUNTEER', availableQuota: 150_000
+  });
+  const solicitados = opciones.map((o) => o.amount.toLocaleString('es-AR'));
+  const textoCompleto = JSON.stringify(decision.response);
+  for (const solicitado of solicitados) {
+    assert.doesNotMatch(textoCompleto, new RegExp(solicitado.replace(/\./g, '\.')),
+      `el solicitado ${solicitado} no debe mostrarse`);
+  }
 });
