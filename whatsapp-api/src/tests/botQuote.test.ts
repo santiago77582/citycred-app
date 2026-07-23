@@ -61,7 +61,7 @@ test('el bot informa las cuotas al registrar el cupo', () => {
   // Las opciones se muestran como MENÚ DESPLEGABLE, no como texto amontonado.
   assert.equal(decision.response?.kind, 'list');
   if (decision.response?.kind !== 'list') return;
-  assert.match(decision.response.body, /registré un cupo de \$150\.000/);
+  assert.match(decision.response.body, /registré tu cupo de \$150\.000/);
   const rows = decision.response.sections[0]?.rows ?? [];
   assert.ok(rows.length > 0, 'debe haber opciones en el desplegable');
   // Cada opción muestra SOLO cuota y neto. El monto solicitado NUNCA aparece.
@@ -81,8 +81,10 @@ test('con cupo insuficiente el bot sigue como siempre, sin cotizar', () => {
     { text: '5000', messageType: 'text', hasMedia: false }
   );
   const body = decision.response?.kind === 'text' ? decision.response.body : '';
-  assert.match(body, /registré un cupo de \$5\.000/);
-  assert.doesNotMatch(body, /podés llevarte/);
+  assert.match(body, /registré tu cupo de \$5\.000/i);
+  // Sin opciones para ese cupo: se avisa y se corta. No se pide documentacion.
+  assert.match(body, /no tenemos opciones disponibles/i);
+  assert.doesNotMatch(body, /DNI|CBU|autorizado/i);
 });
 
 test('el menú ya no ofrece Empleado Público de Río Negro', () => {

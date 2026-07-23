@@ -38,44 +38,32 @@ test('Ejército y Armada preguntan voluntario o carrera', () => {
   }
 });
 
-test('no vuelve a preguntar datos ya guardados', () => {
+test('al registrar el cupo muestra el desplegable y NO pide datos', () => {
   const decision = decideCitycredBot(state({
     stage: 'WAIT_QUOTA',
     entity: 'Ejército',
     personnelType: 'CAREER',
     seniorityRange: 'ONE_YEAR_OR_MORE'
   }), { text: '$85.000' });
-  assert.equal(decision.nextStage, 'WAIT_IDENTITY');
+  assert.equal(decision.nextStage, 'WAIT_QUOTE_CHOICE');
   assert.equal(decision.patch.availableQuota, 85000);
-  // Al registrar el cupo se muestran las opciones como desplegable; el DNI se
-  // pide en el paso siguiente (no se amontona todo en un mensaje).
   assert.equal(decision.response?.kind, 'list');
-
-  // Segundo mensaje: ya con las opciones mostradas, pide nombre y DNI.
-  const luego = decideCitycredBot(state({
-    stage: 'WAIT_IDENTITY',
-    entity: 'Ejército',
-    personnelType: 'CAREER',
-    seniorityRange: 'ONE_YEAR_OR_MORE',
-    availableQuota: 85000,
-    context: { optionsShown: true }
-  }), { interactiveId: 'quote:24', text: null });
-  assert.match(luego.response?.body ?? '', /nombre y apellido y DNI/);
+  // Regla de Santiago: no se pide ningun dato personal en este paso.
+  assert.doesNotMatch(JSON.stringify(decision.response), /DNI|nombre y apellido/i);
 });
 
-test('un DNI posterior se guarda sin reemplazar el cupo ya registrado', () => {
+test('tras autorizar el cupo se pide la documentacion, no antes', () => {
   const decision = decideCitycredBot(state({
-    stage: 'WAIT_IDENTITY',
+    stage: 'WAIT_AUTHORIZATION',
     entity: 'Ejército',
     personnelType: 'CAREER',
     seniorityRange: 'ONE_YEAR_OR_MORE',
     availableQuota: 85000,
-    profileName: 'Juan Pérez'
-  }), { text: 'DNI 30751003' });
+    context: { optionsShown: true, authorizationSent: true }
+  }), { text: 'ya me lo autorizaron' });
   assert.equal(decision.nextStage, 'WAIT_DOCUMENTS');
-  assert.equal(decision.patch.availableQuota, undefined);
-  assert.equal(decision.patch.documentNumber, '30751003');
-  assert.match(decision.response?.body ?? '', /último recibo/);
+  assert.match(decision.response?.body ?? '', /ya está autorizado/i);
+  assert.match(decision.response?.body ?? '', /DNI de ambos lados/i);
 });
 
 test('cupo cero corta y aclara que no pedirá autorización documentos ni derivación', () => {
@@ -118,70 +106,50 @@ test('Gendarmería y Prefectura rechazan voluntarios sin pedir documentos', () =
   }
 });
 
-test('etiqueta un archivo pendiente con el mensaje siguiente', () => {
-  const first = decideCitycredBot(state({
+test('un archivo recibido se acusa sin interrogar al cliente', () => {
+  const decision = decideCitycredBot(state({
     stage: 'WAIT_DOCUMENTS',
     entity: 'Ejército',
     personnelType: 'CAREER',
     seniorityRange: 'ONE_YEAR_OR_MORE',
     availableQuota: 90000,
-    profileName: 'Juan Pérez',
-    documentNumber: '30751003'
+    context: { optionsShown: true, authorizationSent: true, docsRequested: true }
   }), { text: null, messageType: 'image', hasMedia: true });
-  assert.equal(first.reason, 'unlabeled_document');
-
-  const second = decideCitycredBot(state({
-    stage: 'WAIT_DOCUMENTS',
-    entity: 'Ejército',
-    personnelType: 'CAREER',
-    seniorityRange: 'ONE_YEAR_OR_MORE',
-    availableQuota: 90000,
-    profileName: 'Juan Pérez',
-    documentNumber: '30751003',
-    context: first.patch.context ?? {}
-  }), { text: 'es el recibo' });
-  const documents = second.patch.context?.documents as Record<string, boolean>;
-  assert.equal(documents.PAYSLIP, true);
+  assert.equal(decision.reason, 'document_received');
+  assert.match(decision.response?.body ?? '', /recibí el archivo/i);
+  assert.doesNotMatch(decision.response?.body ?? '', /decime si es/i);
 });
 
-test('el comprobante de cupo no reemplaza la documentación', () => {
+test('el comprobante de cupo se registra como documento propio', () => {
   const decision = decideCitycredBot(state({
     stage: 'WAIT_DOCUMENTS',
     entity: 'Armada',
     personnelType: 'CAREER',
     seniorityRange: 'ONE_YEAR_OR_MORE',
     availableQuota: 100000,
-    profileName: 'Ana Gómez',
-    documentNumber: '30111222'
+    context: { optionsShown: true, authorizationSent: true, docsRequested: true }
   }), { text: 'comprobante de cupo', hasMedia: true });
-  assert.equal(decision.nextStage, 'WAIT_DOCUMENTS');
-  assert.equal(decision.reason, 'missing_documents');
   const documents = decision.patch.context?.documents as Record<string, boolean>;
   assert.equal(documents.QUOTA_PROOF, true);
   assert.equal(documents.PAYSLIP, undefined);
 });
 
-test('documentación completa y correo derivan sin prometer aprobación', () => {
+test('documentacion completa cierra y deriva a un asesor', () => {
   const decision = decideCitycredBot(state({
     stage: 'WAIT_DOCUMENTS',
     entity: 'Ejército',
     personnelType: 'CAREER',
     seniorityRange: 'ONE_YEAR_OR_MORE',
     availableQuota: 120000,
-    profileName: 'Juan Pérez',
-    documentNumber: '30751003',
     context: {
-      documents: {
-        PAYSLIP: true,
-        DNI_FRONT: true,
-        DNI_BACK: true,
-        CBU: true
-      }
+      optionsShown: true,
+      authorizationSent: true,
+      docsRequested: true,
+      documents: { PAYSLIP: true, DNI_FRONT: true, DNI_BACK: true, CBU: true }
     }
   }), { text: 'mi correo es juan@example.com' });
   assert.equal(decision.nextStage, 'HANDOFF');
-  assert.equal(decision.patch.handoffReason, 'DOCUMENTATION_COMPLETE');
-  assert.match(decision.response?.body ?? '', /no significa aprobación/i);
+  assert.match(decision.response?.body ?? '', /asesor/i);
 });
 
 test('la baja tiene prioridad y cancela futuros seguimientos', () => {
