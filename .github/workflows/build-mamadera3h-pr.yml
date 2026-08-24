@@ -1,0 +1,45 @@
+name: Build Mamadera 3h APK PR
+
+on:
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+      - name: Install Android platform
+        run: sdkmanager "platforms;android-35" "build-tools;35.0.0"
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.9'
+      - name: Recreate Mamadera project
+        shell: bash
+        run: |
+          mkdir -p mamadera
+          awk '/^B64EOF$/{if(found) exit; found=1; next} found {print}' .github/workflows/build-mamadera3h.yml | base64 -d > /tmp/mamadera.zip
+          unzip -q /tmp/mamadera.zip -d mamadera
+      - name: Build debug APK
+        run: gradle -p mamadera --no-daemon assembleDebug
+      - name: Rename APK
+        run: cp mamadera/app/build/outputs/apk/debug/app-debug.apk Mamadera3h.apk
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: Mamadera3h-APK
+          path: Mamadera3h.apk
+          if-no-files-found: error
