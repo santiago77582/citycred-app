@@ -31,7 +31,9 @@ jobs:
         shell: bash
         run: |
           mkdir -p mamadera
-          awk '/^B64EOF$/{if(found) exit; found=1; next} found {print}' .github/workflows/build-mamadera3h.yml | base64 -d > /tmp/mamadera.zip
+          sed -n "/<<'B64EOF'/,/^[[:space:]]*B64EOF[[:space:]]*$/p" .github/workflows/build-mamadera3h.yml \
+            | sed '1d;$d;s/^[[:space:]]*//' \
+            | base64 -d > /tmp/mamadera.zip
           unzip -q /tmp/mamadera.zip -d mamadera
       - name: Build debug APK
         run: gradle -p mamadera --no-daemon assembleDebug
