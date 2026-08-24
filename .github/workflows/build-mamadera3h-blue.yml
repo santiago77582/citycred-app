@@ -31,7 +31,7 @@ jobs:
       - name: Recreate and customize Mamadera
         shell: bash
         run: |
-          git show 53cea137394147b691f78aa19e5659885b9166fa:.github/workflows/build-mamadera3h.yml > /tmp/original.yml
+          git show 3d0ab670ee4760d13f321ac795f46f521e2dc056:.github/workflows/build-mamadera3h.yml > /tmp/original.yml
           mkdir -p mamadera
           sed -n "/<<'B64EOF'/,/^[[:space:]]*B64EOF[[:space:]]*$/p" /tmp/original.yml \
             | sed '1d;$d;s/^[[:space:]]*//' \
