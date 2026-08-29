@@ -1,0 +1,61 @@
+name: Build GastoControl APK
+
+on:
+  push:
+    branches:
+      - gasto-control-android
+    paths:
+      - '.build/gasto-control-source.zip.b64'
+      - '.github/workflows/build-gasto-control.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.11.1'
+
+      - name: Restore Android project
+        run: |
+          mkdir -p gasto-control
+          base64 -d .build/gasto-control-source.zip.b64 > /tmp/gasto-control.zip
+          unzip -q /tmp/gasto-control.zip -d gasto-control
+
+      - name: Install Android SDK platform
+        run: |
+          yes | sdkmanager --licenses >/dev/null || true
+          sdkmanager "platforms;android-35" "build-tools;35.0.0"
+
+      - name: Build debug APK
+        working-directory: gasto-control
+        run: gradle :app:assembleDebug --stacktrace
+
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: GastoControl-debug-apk
+          path: gasto-control/app/build/outputs/apk/debug/app-debug.apk
+
+      - name: Store APK as base64 for retrieval
+        run: |
+          mkdir -p build-output
+          base64 -w 0 gasto-control/app/build/outputs/apk/debug/app-debug.apk > build-output/GastoControl-debug.apk.b64
+          printf '\n' >> build-output/GastoControl-debug.apk.b64
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add build-output/GastoControl-debug.apk.b64
+          if ! git diff --cached --quiet; then
+            git commit -m "Build GastoControl APK [skip ci]"
+            git push
+          fi
