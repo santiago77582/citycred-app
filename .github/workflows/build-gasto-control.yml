@@ -5,7 +5,7 @@ on:
     branches:
       - gasto-control-android
     paths:
-      - '.build/gastocontrol-v3patch.part*'
+      - '.build/gastocontrol-v3overlay.part*'
       - '.github/workflows/build-gasto-control.yml'
 
 permissions:
@@ -39,12 +39,10 @@ jobs:
           cat .build/gastocontrol-v2.part* | base64 -d > /tmp/gastocontrol-pro-v2.zip
           unzip -q /tmp/gastocontrol-pro-v2.zip -d gasto-control
 
-      - name: Apply V3 patch
+      - name: Overlay V3 files
         run: |
-          cat .build/gastocontrol-v3patch.part* | base64 -d > /tmp/gastocontrol-v3.patch.xz
-          xz -dc /tmp/gastocontrol-v3.patch.xz > /tmp/gastocontrol-v3.patch
-          cd gasto-control
-          patch -p1 < /tmp/gastocontrol-v3.patch
+          cat .build/gastocontrol-v3overlay.part* | base64 -d > /tmp/gastocontrol-v3-overlay.tar.xz
+          tar -xJf /tmp/gastocontrol-v3-overlay.tar.xz -C gasto-control
 
       - name: Build debug APK
         working-directory: gasto-control
