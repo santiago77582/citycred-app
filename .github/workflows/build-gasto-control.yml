@@ -1,11 +1,11 @@
-name: Build GastoControl Pro V3 APK
+name: Build GastoControl Pro V4 APK
 
 on:
   push:
     branches:
       - gasto-control-android
     paths:
-      - '.build/gastocontrol-v3full.part*'
+      - '.build/gastocontrol-v4overlay.part*'
       - '.github/workflows/build-gasto-control.yml'
 
 permissions:
@@ -42,6 +42,14 @@ jobs:
           test -f gasto-control/app/src/main/java/com/gastocontrol/app/Transaction.java
           test -f gasto-control/app/src/main/java/com/gastocontrol/app/AlertScheduler.java
 
+      - name: Apply simple V4 interface
+        run: |
+          cat .build/gastocontrol-v4overlay.part* | base64 -d > /tmp/gastocontrol-v4-overlay.tar.xz
+          tar -xJf /tmp/gastocontrol-v4-overlay.tar.xz -C gasto-control
+          test -f gasto-control/app/src/main/java/com/gastocontrol/app/MainActivity.java
+          test -f gasto-control/app/src/main/java/com/gastocontrol/app/AdvancedActivity.java
+          grep -q 'versionName "4.0.0"' gasto-control/app/build.gradle
+
       - name: Build debug APK
         working-directory: gasto-control
         run: gradle :app:assembleDebug --stacktrace
@@ -56,5 +64,5 @@ jobs:
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: GastoControl-Pro-v3-apk
+          name: GastoControl-Pro-v4-apk
           path: gasto-control/app/build/outputs/apk/debug/app-debug.apk
