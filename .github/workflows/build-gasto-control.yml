@@ -44,6 +44,12 @@ jobs:
           cat .build/gastocontrol-v3overlay.part* | base64 -d > /tmp/gastocontrol-v3-overlay.tar.xz
           tar -xJf /tmp/gastocontrol-v3-overlay.tar.xz -C gasto-control
 
+      - name: Enable AndroidX
+        run: |
+          touch gasto-control/gradle.properties
+          grep -q '^android.useAndroidX=true$' gasto-control/gradle.properties || echo 'android.useAndroidX=true' >> gasto-control/gradle.properties
+          grep -q '^android.enableJetifier=true$' gasto-control/gradle.properties || echo 'android.enableJetifier=true' >> gasto-control/gradle.properties
+
       - name: Build debug APK
         working-directory: gasto-control
         run: gradle :app:assembleDebug --stacktrace
