@@ -5,7 +5,7 @@ on:
     branches:
       - gasto-control-android
     paths:
-      - '.build/gastocontrol-v3overlay.part*'
+      - '.build/gastocontrol-v3full.part*'
       - '.github/workflows/build-gasto-control.yml'
 
 permissions:
@@ -32,23 +32,15 @@ jobs:
         with:
           gradle-version: '8.11.1'
 
-      - name: Restore V2 base
+      - name: Restore complete V3 project
         run: |
           rm -rf gasto-control
           mkdir -p gasto-control
-          cat .build/gastocontrol-v2.part* | base64 -d > /tmp/gastocontrol-pro-v2.zip
-          unzip -q /tmp/gastocontrol-pro-v2.zip -d gasto-control
-
-      - name: Overlay V3 files
-        run: |
-          cat .build/gastocontrol-v3overlay.part* | base64 -d > /tmp/gastocontrol-v3-overlay.tar.xz
-          tar -xJf /tmp/gastocontrol-v3-overlay.tar.xz -C gasto-control
-
-      - name: Enable AndroidX
-        run: |
-          touch gasto-control/gradle.properties
-          grep -q '^android.useAndroidX=true$' gasto-control/gradle.properties || echo 'android.useAndroidX=true' >> gasto-control/gradle.properties
-          grep -q '^android.enableJetifier=true$' gasto-control/gradle.properties || echo 'android.enableJetifier=true' >> gasto-control/gradle.properties
+          cat .build/gastocontrol-v3full.part* | base64 -d > /tmp/gastocontrol-v3full.tar.xz
+          tar -xJf /tmp/gastocontrol-v3full.tar.xz -C gasto-control
+          test -f gasto-control/app/src/main/java/com/gastocontrol/app/FinanceMath.java
+          test -f gasto-control/app/src/main/java/com/gastocontrol/app/Transaction.java
+          test -f gasto-control/app/src/main/java/com/gastocontrol/app/AlertScheduler.java
 
       - name: Build debug APK
         working-directory: gasto-control
