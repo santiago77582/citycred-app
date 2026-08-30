@@ -1,11 +1,11 @@
-name: Build GastoControl Pro APK
+name: Build GastoControl Pro V3 APK
 
 on:
   push:
     branches:
       - gasto-control-android
     paths:
-      - '.build/gastocontrol-v2.part*'
+      - '.build/gastocontrol-v3.part*'
       - '.github/workflows/build-gasto-control.yml'
 
 permissions:
@@ -32,19 +32,24 @@ jobs:
         with:
           gradle-version: '8.11.1'
 
-      - name: Restore GastoControl Pro project
+      - name: Restore GastoControl Pro V3 project
         run: |
           rm -rf gasto-control
           mkdir -p gasto-control
-          cat .build/gastocontrol-v2.part* | base64 -d > /tmp/gastocontrol-pro-v2.zip
-          unzip -q /tmp/gastocontrol-pro-v2.zip -d gasto-control
+          cat .build/gastocontrol-v3.part* | base64 -d > /tmp/gastocontrol-pro-v3.zip
+          unzip -q /tmp/gastocontrol-pro-v3.zip -d gasto-control
 
       - name: Build debug APK
         working-directory: gasto-control
         run: gradle :app:assembleDebug --stacktrace
 
+      - name: Verify APK
+        run: |
+          test -s gasto-control/app/build/outputs/apk/debug/app-debug.apk
+          ls -lh gasto-control/app/build/outputs/apk/debug/app-debug.apk
+
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: GastoControl-Pro-v2-apk
+          name: GastoControl-Pro-v3-apk
           path: gasto-control/app/build/outputs/apk/debug/app-debug.apk
