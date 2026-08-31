@@ -52,13 +52,13 @@ jobs:
 
       - name: Apply V6 app catalog
         run: |
-          cat .build/gastocontrol-v6overlay.part00fixed .build/gastocontrol-v6overlay.part01 .build/gastocontrol-v6overlay.part02 .build/gastocontrol-v6overlay.part03 .build/gastocontrol-v6overlay.part04 | base64 -d > /tmp/gastocontrol-v6-overlay.tar.xz
+          cat .build/gastocontrol-v6overlay.part00 .build/gastocontrol-v6overlay.part01 .build/gastocontrol-v6overlay.part02 .build/gastocontrol-v6overlay.part03 .build/gastocontrol-v6overlay.part04 | base64 -d > /tmp/gastocontrol-v6-overlay.tar.xz
           xz -t /tmp/gastocontrol-v6-overlay.tar.xz
           tar -xJf /tmp/gastocontrol-v6-overlay.tar.xz -C gasto-control
-          test -f gasto-control/app/src/main/java/com/gastocontrol/app/AppMonitorRegistry.java
-          test -f gasto-control/app/src/main/java/com/gastocontrol/app/AppSelectionActivity.java
+          test -f gasto-control/app/src/main/java/com/gastocontrol/app/AppCatalog.java
+          test -f gasto-control/app/src/main/java/com/gastocontrol/app/PaymentAppsActivity.java
           grep -q 'versionName "6.0.0"' gasto-control/app/build.gradle
-          grep -q 'Apps que quiero controlar' gasto-control/app/src/main/java/com/gastocontrol/app/MainActivity.java
+          grep -q 'Aplicaciones que uso' gasto-control/app/src/main/java/com/gastocontrol/app/MainActivity.java
 
       - name: Build debug APK
         working-directory: gasto-control
