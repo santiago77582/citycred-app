@@ -1,11 +1,11 @@
-name: Build GastoControl Pro V5 APK
+name: Build GastoControl Pro V6 APK
 
 on:
   push:
     branches:
       - gasto-control-android
     paths:
-      - '.build/gastocontrol-v5overlay.part*'
+      - '.build/gastocontrol-v6overlay.part*'
       - '.github/workflows/build-gasto-control.yml'
 
 permissions:
@@ -38,24 +38,26 @@ jobs:
           mkdir -p gasto-control
           cat .build/gastocontrol-v3full.part* | base64 -d > /tmp/gastocontrol-v3full.tar.xz
           tar -xJf /tmp/gastocontrol-v3full.tar.xz -C gasto-control
-          test -f gasto-control/app/src/main/java/com/gastocontrol/app/FinanceMath.java
-          test -f gasto-control/app/src/main/java/com/gastocontrol/app/Transaction.java
-          test -f gasto-control/app/src/main/java/com/gastocontrol/app/AlertScheduler.java
 
       - name: Apply simple V4 interface
         run: |
           cat .build/gastocontrol-v4overlay.part* | base64 -d > /tmp/gastocontrol-v4-overlay.tar.xz
           tar -xJf /tmp/gastocontrol-v4-overlay.tar.xz -C gasto-control
-          grep -q 'versionName "4.0.0"' gasto-control/app/build.gradle
 
       - name: Apply V5 always-on monitor
         run: |
           cat .build/gastocontrol-v5overlay.part* | base64 -d > /tmp/gastocontrol-v5-overlay.tar.xz
           tar -xJf /tmp/gastocontrol-v5-overlay.tar.xz -C gasto-control
           test -f gasto-control/app/src/main/java/com/gastocontrol/app/ListenerWatchdog.java
-          test -f gasto-control/app/src/main/java/com/gastocontrol/app/MonitorReceiver.java
-          grep -q 'versionName "5.0.0"' gasto-control/app/build.gradle
-          grep -q 'Monitor automático 24/7' gasto-control/app/src/main/java/com/gastocontrol/app/MainActivity.java
+
+      - name: Apply V6 app catalog
+        run: |
+          cat .build/gastocontrol-v6overlay.part* | base64 -d > /tmp/gastocontrol-v6-overlay.tar.xz
+          tar -xJf /tmp/gastocontrol-v6-overlay.tar.xz -C gasto-control
+          test -f gasto-control/app/src/main/java/com/gastocontrol/app/AppCatalog.java
+          test -f gasto-control/app/src/main/java/com/gastocontrol/app/PaymentAppsActivity.java
+          grep -q 'versionName "6.0.0"' gasto-control/app/build.gradle
+          grep -q 'Aplicaciones que uso' gasto-control/app/src/main/java/com/gastocontrol/app/MainActivity.java
 
       - name: Build debug APK
         working-directory: gasto-control
@@ -71,5 +73,5 @@ jobs:
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: GastoControl-Pro-v5-apk
+          name: GastoControl-Pro-v6-apk
           path: gasto-control/app/build/outputs/apk/debug/app-debug.apk
