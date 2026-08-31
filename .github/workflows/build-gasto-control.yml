@@ -1,4 +1,4 @@
-name: Build GastoControl Pro V6 APK
+name: Build GastoControl Pro V7 APK
 
 on:
   push:
@@ -6,6 +6,7 @@ on:
       - gasto-control-android
     paths:
       - '.build/gastocontrol-v6overlay.*'
+      - '.build/gastocontrol-v7overlay.b64'
       - '.github/workflows/build-gasto-control.yml'
 
 permissions:
@@ -64,6 +65,15 @@ jobs:
           grep -q 'versionName "6.0.0"' gasto-control/app/build.gradle
           grep -q 'Apps que quiero controlar' gasto-control/app/src/main/java/com/gastocontrol/app/MainActivity.java
 
+      - name: Apply V7 connection center
+        run: |
+          base64 -d .build/gastocontrol-v7overlay.b64 > /tmp/gastocontrol-v7-overlay.tar.xz
+          xz -t /tmp/gastocontrol-v7-overlay.tar.xz
+          tar -xJf /tmp/gastocontrol-v7-overlay.tar.xz -C gasto-control
+          test -f gasto-control/app/src/main/java/com/gastocontrol/app/ConnectionCenterActivity.java
+          grep -q 'versionName "7.0.0"' gasto-control/app/build.gradle
+          grep -q 'Conectar mis cuentas' gasto-control/app/src/main/java/com/gastocontrol/app/MainActivity.java
+
       - name: Build debug APK
         working-directory: gasto-control
         run: gradle :app:assembleDebug --stacktrace
@@ -78,5 +88,5 @@ jobs:
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: GastoControl-Pro-v6-apk
+          name: GastoControl-Pro-v7-apk
           path: gasto-control/app/build/outputs/apk/debug/app-debug.apk
