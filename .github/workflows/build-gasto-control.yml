@@ -5,7 +5,7 @@ on:
     branches:
       - gasto-control-android
     paths:
-      - '.build/gastocontrol-v6overlay.part*'
+      - '.build/gastocontrol-v6overlay.*'
       - '.github/workflows/build-gasto-control.yml'
 
 permissions:
@@ -52,13 +52,17 @@ jobs:
 
       - name: Apply V6 app catalog
         run: |
-          cat .build/gastocontrol-v6overlay.part00 .build/gastocontrol-v6overlay.part01 .build/gastocontrol-v6overlay.part02 .build/gastocontrol-v6overlay.part03 .build/gastocontrol-v6overlay.part04 | base64 -d > /tmp/gastocontrol-v6-overlay.tar.xz
+          cat .build/gastocontrol-v6overlay.part00fixed .build/gastocontrol-v6overlay.fixed01 .build/gastocontrol-v6overlay.fixed02 .build/gastocontrol-v6overlay.fixed03 > /tmp/gastocontrol-v6.b64
+          cat >> /tmp/gastocontrol-v6.b64 <<'V6TAIL'
+          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
+          V6TAIL
+          tr -d '[:space:]' < /tmp/gastocontrol-v6.b64 | base64 -d > /tmp/gastocontrol-v6-overlay.tar.xz
           xz -t /tmp/gastocontrol-v6-overlay.tar.xz
           tar -xJf /tmp/gastocontrol-v6-overlay.tar.xz -C gasto-control
-          test -f gasto-control/app/src/main/java/com/gastocontrol/app/AppCatalog.java
-          test -f gasto-control/app/src/main/java/com/gastocontrol/app/PaymentAppsActivity.java
+          test -f gasto-control/app/src/main/java/com/gastocontrol/app/AppMonitorRegistry.java
+          test -f gasto-control/app/src/main/java/com/gastocontrol/app/AppSelectionActivity.java
           grep -q 'versionName "6.0.0"' gasto-control/app/build.gradle
-          grep -q 'Aplicaciones que uso' gasto-control/app/src/main/java/com/gastocontrol/app/MainActivity.java
+          grep -q 'Apps que quiero controlar' gasto-control/app/src/main/java/com/gastocontrol/app/MainActivity.java
 
       - name: Build debug APK
         working-directory: gasto-control
