@@ -52,7 +52,8 @@ jobs:
 
       - name: Apply V6 app catalog
         run: |
-          cat .build/gastocontrol-v6overlay.part* | base64 -d > /tmp/gastocontrol-v6-overlay.tar.xz
+          cat .build/gastocontrol-v6overlay.part00fixed .build/gastocontrol-v6overlay.part01 .build/gastocontrol-v6overlay.part02 .build/gastocontrol-v6overlay.part03 .build/gastocontrol-v6overlay.part04 | base64 -d > /tmp/gastocontrol-v6-overlay.tar.xz
+          xz -t /tmp/gastocontrol-v6-overlay.tar.xz
           tar -xJf /tmp/gastocontrol-v6-overlay.tar.xz -C gasto-control
           test -f gasto-control/app/src/main/java/com/gastocontrol/app/AppMonitorRegistry.java
           test -f gasto-control/app/src/main/java/com/gastocontrol/app/AppSelectionActivity.java
