@@ -178,7 +178,7 @@ public final class NotificationParser {
         if (containsAny(s, "ypf", "shell", "axion", "puma energy", "nafta", "combustible", "estacion de servicio", "gnc")) return "Combustible";
         if (containsAny(s, "uber", "cabify", "didi", "taxi", "remis", "colectivo", "sube", "transporte", "peaje", "telepase", "estacionamiento", "cochera", "aerolineas", "flybondi", "jetsmart", "pasaje")) return "Transporte";
         if (containsAny(s, "movistar", "personal", "claro", "internet", "fibra", "fibertel", "telecentro", "telecom", "iplan", "flow", "directv", "recarga")) return "Telefonía e Internet";
-        if (containsAny(s, "edes", "edenor", "edesur", "edelap", "camuzzi", "metrogas", "naturgy", "gas", "agua", "aysa", "absa", "luz", "energia", "cooperativa electrica")) return "Servicios";
+        if (containsAny(s, "edes", "edenor", "edesur", "edelap", "camuzzi", "metrogas", "naturgy", "agua", "aysa", "absa", "luz", "energia", "cooperativa electrica") || s.matches(".*\\bgas\\b.*")) return "Servicios";
         if (containsAny(s, "netflix", "spotify", "youtube premium", "youtube music", "disney", "hbo", "max ", "amazon prime", "prime video", "paramount", "star+", "star plus", "crunchyroll", "mubi", "apple.com/bill", "itunes", "google one", "icloud", "canva", "chatgpt", "openai", "suscripcion", "membresia")) return "Suscripciones";
         if (containsAny(s, "farmacia", "farmacity", "medic", "clinica", "hospital", "laboratorio", "odontolog", "sancor salud", "osde", "swiss medical", "galeno", "medife", "prepaga")) return "Salud";
         if (containsAny(s, "seguro", "sancor seguros", "federacion patronal", "mercantil andina", "la caja", "zurich", "provincia seguros", "rivadavia seguros")) return "Seguros";
