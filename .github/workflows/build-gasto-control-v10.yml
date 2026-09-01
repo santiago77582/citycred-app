@@ -65,12 +65,12 @@ jobs:
           xz -t /tmp/v10.patch.xz
           xz -dc /tmp/v10.patch.xz > /tmp/v10.patch
           git apply --check --verbose --directory=gasto-control \
-            --exclude=app/src/main/java/com/gastocontrol/app/FinanceNotificationService.java \
-            --exclude=app/src/main/java/com/gastocontrol/app/NotificationParser.java \
+            --exclude=gasto-control/app/src/main/java/com/gastocontrol/app/FinanceNotificationService.java \
+            --exclude=gasto-control/app/src/main/java/com/gastocontrol/app/NotificationParser.java \
             /tmp/v10.patch
           git apply --verbose --whitespace=nowarn --directory=gasto-control \
-            --exclude=app/src/main/java/com/gastocontrol/app/FinanceNotificationService.java \
-            --exclude=app/src/main/java/com/gastocontrol/app/NotificationParser.java \
+            --exclude=gasto-control/app/src/main/java/com/gastocontrol/app/FinanceNotificationService.java \
+            --exclude=gasto-control/app/src/main/java/com/gastocontrol/app/NotificationParser.java \
             /tmp/v10.patch
           cp .build/v10-FinanceNotificationService.java gasto-control/app/src/main/java/com/gastocontrol/app/FinanceNotificationService.java
           cp .build/v10-NotificationParser.java gasto-control/app/src/main/java/com/gastocontrol/app/NotificationParser.java
