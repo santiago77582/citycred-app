@@ -58,24 +58,18 @@ jobs:
 
       - name: Apply V10 patch
         run: |
-          set -uxo pipefail
+          set -euxo pipefail
           sha256sum .build/v10patch.*
           cat .build/v10patch.00 .build/v10patch.01 .build/v10patch.02 .build/v10patch.03 .build/v10patch.04 | base64 -d > /tmp/v10.patch.xz
-          echo "decode=$?"
           xz -t /tmp/v10.patch.xz
-          echo "xztest=$?"
           xz -dc /tmp/v10.patch.xz > /tmp/v10.patch
-          echo "unxz=$?"
-          cd gasto-control
-          git apply --check --verbose /tmp/v10.patch
-          echo "applycheck=$?"
-          git apply --verbose --whitespace=nowarn /tmp/v10.patch
-          echo "apply=$?"
-          grep -n 'versionName' app/build.gradle || true
-          ls -l app/src/main/java/com/gastocontrol/app/ProviderNotificationParser.java app/src/main/java/com/gastocontrol/app/PdfStatementImporter.java app/src/test/java/com/gastocontrol/app/NotificationParserTest.java || true
-          test -f app/src/main/java/com/gastocontrol/app/ProviderNotificationParser.java
-          test -f app/src/main/java/com/gastocontrol/app/PdfStatementImporter.java
-          test -f app/src/test/java/com/gastocontrol/app/NotificationParserTest.java
+          git apply --check --verbose --directory=gasto-control /tmp/v10.patch
+          git apply --verbose --whitespace=nowarn --directory=gasto-control /tmp/v10.patch
+          grep -n 'versionName' gasto-control/app/build.gradle
+          grep -q 'versionName "10.0.0"' gasto-control/app/build.gradle
+          test -f gasto-control/app/src/main/java/com/gastocontrol/app/ProviderNotificationParser.java
+          test -f gasto-control/app/src/main/java/com/gastocontrol/app/PdfStatementImporter.java
+          test -f gasto-control/app/src/test/java/com/gastocontrol/app/NotificationParserTest.java
 
       - name: Run unit tests
         working-directory: gasto-control
