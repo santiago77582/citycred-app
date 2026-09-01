@@ -6,6 +6,8 @@ on:
       - gasto-control-v10-release
     paths:
       - '.build/v10patch.*'
+      - '.build/v10-FinanceNotificationService.java'
+      - '.build/v10-NotificationParser.java'
       - '.github/workflows/build-gasto-control-v10.yml'
   workflow_dispatch:
 
@@ -59,13 +61,19 @@ jobs:
       - name: Apply V10 patch
         run: |
           set -euxo pipefail
-          sha256sum .build/v10patch.*
           cat .build/v10patch.00 .build/v10patch.01 .build/v10patch.02 .build/v10patch.03 .build/v10patch.04 | base64 -d > /tmp/v10.patch.xz
           xz -t /tmp/v10.patch.xz
           xz -dc /tmp/v10.patch.xz > /tmp/v10.patch
-          git apply --check --verbose --directory=gasto-control /tmp/v10.patch
-          git apply --verbose --whitespace=nowarn --directory=gasto-control /tmp/v10.patch
-          grep -n 'versionName' gasto-control/app/build.gradle
+          git apply --check --verbose --directory=gasto-control \
+            --exclude=app/src/main/java/com/gastocontrol/app/FinanceNotificationService.java \
+            --exclude=app/src/main/java/com/gastocontrol/app/NotificationParser.java \
+            /tmp/v10.patch
+          git apply --verbose --whitespace=nowarn --directory=gasto-control \
+            --exclude=app/src/main/java/com/gastocontrol/app/FinanceNotificationService.java \
+            --exclude=app/src/main/java/com/gastocontrol/app/NotificationParser.java \
+            /tmp/v10.patch
+          cp .build/v10-FinanceNotificationService.java gasto-control/app/src/main/java/com/gastocontrol/app/FinanceNotificationService.java
+          cp .build/v10-NotificationParser.java gasto-control/app/src/main/java/com/gastocontrol/app/NotificationParser.java
           grep -q 'versionName "10.0.0"' gasto-control/app/build.gradle
           test -f gasto-control/app/src/main/java/com/gastocontrol/app/ProviderNotificationParser.java
           test -f gasto-control/app/src/main/java/com/gastocontrol/app/PdfStatementImporter.java
