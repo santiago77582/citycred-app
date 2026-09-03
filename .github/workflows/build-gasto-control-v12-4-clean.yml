@@ -68,6 +68,17 @@ jobs:
           echo 'fa00136cf1461b72cdb0f1a0594f327de8b81d55de741840d41b3cb1bfe1c01b  /tmp/v124-clean.tar.xz' | sha256sum -c -
           xz -t /tmp/v124-clean.tar.xz
           tar -xJf /tmp/v124-clean.tar.xz -C gasto-control
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('gasto-control/app/src/main/java/com/gastocontrol/app/ExpenseDbHelper.java')
+          s=p.read_text(encoding='utf-8')
+          block='''    private static String appendTag(String tags, String value) {\n        String a = tags == null ? "" : tags.trim();\n        return a.isEmpty() ? value : a + "," + value;\n    }\n\n'''
+          if block in s:
+              s=s.replace(block,'',1)
+          p.write_text(s,encoding='utf-8')
+          if s.count('appendTag(String tags, String') != 1:
+              raise SystemExit('appendTag duplicado/no esperado')
+          PY
           grep -q 'applicationId "com.gastocontrol.app.v12"' gasto-control/app/build.gradle
           grep -q 'versionCode 16' gasto-control/app/build.gradle
           grep -q 'versionName "12.4.0"' gasto-control/app/build.gradle
