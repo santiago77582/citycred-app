@@ -1,0 +1,84 @@
+name: Build GastoControl Pro V12 APK
+
+on:
+  push:
+    branches:
+      - gasto-control-v12-release
+    paths:
+      - '.build/gastocontrol-v12.patch.b64'
+      - '.github/workflows/build-gasto-control-v12.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Setup Android SDK
+        uses: amyu/setup-android@09345fc2cbed5b3a92beea84d843a22eac6cc841
+        with:
+          sdk-version: '35'
+          build-tools-version: '35.0.0'
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.11.1'
+
+      - name: Reconstruct V11 source
+        run: |
+          set -euxo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          text = Path('.github/workflows/build-gasto-control-v11.yml').read_text(encoding='utf-8')
+          def extract(step_name, target):
+              marker = f"      - name: {step_name}\n        run: |\n"
+              body = text.split(marker, 1)[1].split('\n      - name:', 1)[0]
+              out=[]
+              for line in body.splitlines(): out.append(line[10:] if line.startswith('          ') else line)
+              Path(target).write_text('\n'.join(out)+'\n', encoding='utf-8')
+          extract('Reconstruct tested V10 source','/tmp/reconstruct-v10.sh')
+          extract('Apply V11 automatic-first UI','/tmp/apply-v11.sh')
+          PY
+          bash /tmp/reconstruct-v10.sh
+          bash /tmp/apply-v11.sh
+          grep -q 'versionName "11.0.0"' gasto-control/app/build.gradle
+
+      - name: Apply V12 guided capture
+        run: |
+          set -euxo pipefail
+          base64 -d .build/gastocontrol-v12.patch.b64 > /tmp/v12.patch.xz
+          xz -t /tmp/v12.patch.xz
+          xz -dc /tmp/v12.patch.xz > /tmp/v12.patch
+          patch --batch -d gasto-control -p1 < /tmp/v12.patch
+          grep -q 'versionName "12.0.0"' gasto-control/app/build.gradle
+          test -f gasto-control/app/src/main/java/com/gastocontrol/app/ScreenCaptureService.java
+          test -f gasto-control/app/src/main/java/com/gastocontrol/app/ScreenMovementParser.java
+          grep -q 'FOREGROUND_SERVICE_MEDIA_PROJECTION' gasto-control/app/src/main/AndroidManifest.xml
+
+      - name: Run unit tests
+        working-directory: gasto-control
+        run: gradle :app:testDebugUnitTest --stacktrace
+
+      - name: Build debug APK
+        working-directory: gasto-control
+        run: gradle :app:assembleDebug --stacktrace
+
+      - name: Verify APK
+        run: |
+          set -euxo pipefail
+          test -s gasto-control/app/build/outputs/apk/debug/app-debug.apk
+          unzip -t gasto-control/app/build/outputs/apk/debug/app-debug.apk >/dev/null
+          sha256sum gasto-control/app/build/outputs/apk/debug/app-debug.apk
+          ls -lh gasto-control/app/build/outputs/apk/debug/app-debug.apk
+
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: GastoControl-Pro-v12-apk
+          path: gasto-control/app/build/outputs/apk/debug/app-debug.apk
