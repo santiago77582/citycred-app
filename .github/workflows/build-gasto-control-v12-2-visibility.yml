@@ -5,7 +5,7 @@ on:
     branches:
       - gasto-control-v12-release
     paths:
-      - '.build/gastocontrol-v12-2-overlay.b64'
+      - '.build/gastocontrol-v12-2-overlay.part*'
       - '.github/workflows/build-gasto-control-v12-2-visibility.yml'
   workflow_dispatch:
 
@@ -55,13 +55,19 @@ jobs:
       - name: Apply V12.2 package visibility fix
         run: |
           set -euxo pipefail
-          base64 -d .build/gastocontrol-v12-2-overlay.b64 > /tmp/v122.tar.xz
+          cat .build/gastocontrol-v12-2-overlay.part00 \
+              .build/gastocontrol-v12-2-overlay.part01 \
+              .build/gastocontrol-v12-2-overlay.part02 \
+              .build/gastocontrol-v12-2-overlay.part03 > /tmp/v122.b64
+          base64 -d /tmp/v122.b64 > /tmp/v122.tar.xz
+          echo '982217a9cc84bbc8a7c45532ae6969d1223398165795bb5d6bb3eca0c6872219  /tmp/v122.tar.xz' | sha256sum -c -
           xz -t /tmp/v122.tar.xz
           tar -xJf /tmp/v122.tar.xz -C gasto-control
           grep -q 'versionCode 14' gasto-control/app/build.gradle
           grep -q 'versionName "12.2.0"' gasto-control/app/build.gradle
           grep -q 'com.mercadopago.wallet' gasto-control/app/src/main/AndroidManifest.xml
           grep -q 'ar.com.bancoprovincia.CuentaDNI' gasto-control/app/src/main/AndroidManifest.xml
+          grep -q 'android.intent.category.LAUNCHER' gasto-control/app/src/main/AndroidManifest.xml
           grep -q 'resolveLaunchIntent' gasto-control/app/src/main/java/com/gastocontrol/app/MainActivity.java
 
       - name: Run unit tests
