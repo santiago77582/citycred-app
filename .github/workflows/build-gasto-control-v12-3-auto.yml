@@ -1,0 +1,94 @@
+name: Build GastoControl Pro V12.3 Auto Read
+
+on:
+  push:
+    branches:
+      - gasto-control-v12-release
+    paths:
+      - '.build/gastocontrol-v12-3-overlay.part*'
+      - '.github/workflows/build-gasto-control-v12-3-auto.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Setup Android SDK
+        uses: amyu/setup-android@09345fc2cbed5b3a92beea84d843a22eac6cc841
+        with:
+          sdk-version: '35'
+          build-tools-version: '35.0.0'
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.11.1'
+
+      - name: Reconstruct V12.2 source
+        run: |
+          set -euxo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          text = Path('.github/workflows/build-gasto-control-v12-2-visibility.yml').read_text(encoding='utf-8')
+          def extract(step_name, target):
+              marker = f"      - name: {step_name}\n        run: |\n"
+              if marker not in text:
+                  raise SystemExit('No se encontro '+step_name)
+              body = text.split(marker,1)[1].split('\n      - name:',1)[0]
+              out=[]
+              for line in body.splitlines(): out.append(line[10:] if line.startswith('          ') else line)
+              Path(target).write_text('\n'.join(out)+'\n', encoding='utf-8')
+          extract('Reconstruct V12.1 source','/tmp/reconstruct-v121.sh')
+          extract('Apply V12.2 package visibility fix','/tmp/apply-v122.sh')
+          PY
+          bash /tmp/reconstruct-v121.sh
+          bash /tmp/apply-v122.sh
+          grep -q 'versionCode 14' gasto-control/app/build.gradle
+          grep -q 'versionName "12.2.0"' gasto-control/app/build.gradle
+
+      - name: Apply V12.3 automatic history reader
+        run: |
+          set -euxo pipefail
+          cat .build/gastocontrol-v12-3-overlay.part00 \
+              .build/gastocontrol-v12-3-overlay.part01 \
+              .build/gastocontrol-v12-3-overlay.part02 \
+              .build/gastocontrol-v12-3-overlay.part03 > /tmp/v123.b64
+          base64 -d /tmp/v123.b64 > /tmp/v123.tar.xz
+          echo '7b6c593154d6a2566db064f6198fa03b9a3bc8b84908cfe603f4aff46f58fd80  /tmp/v123.tar.xz' | sha256sum -c -
+          xz -t /tmp/v123.tar.xz
+          tar -xJf /tmp/v123.tar.xz -C gasto-control
+          grep -q 'versionCode 15' gasto-control/app/build.gradle
+          grep -q 'versionName "12.3.0"' gasto-control/app/build.gradle
+          grep -q 'FRAME_INTERVAL_MS = 700L' gasto-control/app/src/main/java/com/gastocontrol/app/ScreenCaptureService.java
+          grep -q 'maybeFinishAutomaticHistoryReadOnReturn' gasto-control/app/src/main/java/com/gastocontrol/app/MainActivity.java
+          grep -q 'Leer Mercado Pago automáticamente' gasto-control/app/src/main/java/com/gastocontrol/app/MainActivity.java
+          grep -q 'Leer Cuenta DNI automáticamente' gasto-control/app/src/main/java/com/gastocontrol/app/MainActivity.java
+
+      - name: Run unit tests
+        working-directory: gasto-control
+        run: gradle :app:testDebugUnitTest --stacktrace
+
+      - name: Build unsigned release APK
+        working-directory: gasto-control
+        run: gradle :app:assembleRelease --stacktrace
+
+      - name: Verify unsigned APK
+        run: |
+          set -euxo pipefail
+          APK=gasto-control/app/build/outputs/apk/release/app-release-unsigned.apk
+          test -s "$APK"
+          unzip -t "$APK" >/dev/null
+          sha256sum "$APK"
+          ls -lh "$APK"
+
+      - name: Upload unsigned APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: GastoControl-Pro-v12.3-unsigned-apk
+          path: gasto-control/app/build/outputs/apk/release/app-release-unsigned.apk
