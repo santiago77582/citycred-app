@@ -42,7 +42,8 @@ jobs:
                   raise SystemExit('No se encontro '+step_name)
               body = text.split(marker,1)[1].split('\n      - name:',1)[0]
               out=[]
-              for line in body.splitlines(): out.append(line[10:] if line.startswith('          ') else line)
+              for line in body.splitlines():
+                  out.append(line[10:] if line.startswith('          ') else line)
               Path(target).write_text('\n'.join(out)+'\n', encoding='utf-8')
           extract('Reconstruct V12.2 source','/tmp/reconstruct-v122.sh')
           extract('Apply V12.3 automatic history reader','/tmp/apply-v123.sh')
@@ -59,36 +60,18 @@ jobs:
               .build/gastocontrol-v12-4-overlay.part01 \
               .build/gastocontrol-v12-4-overlay.part02 \
               .build/gastocontrol-v12-4-overlay.part03 \
-              .build/gastocontrol-v12-4-overlay.part04 \
-              .build/gastocontrol-v12-4-overlay.part05 \
-              .build/gastocontrol-v12-4-overlay.part06 > /tmp/v124.b64
+              .build/gastocontrol-v12-4-overlay.part04 > /tmp/v124.b64
           base64 -d /tmp/v124.b64 > /tmp/v124.tar.xz
-          echo 'b0e4b8227ce13ac03d4f488b5154c0ad3eb93733b1a5561fccd7573cad025dc6  /tmp/v124.tar.xz' | sha256sum -c -
+          echo '6579c6274a7ecb78a52f721c553f2642b4c9238f83e4a84a8931cbbb0067c884  /tmp/v124.tar.xz' | sha256sum -c -
           xz -t /tmp/v124.tar.xz
           tar -xJf /tmp/v124.tar.xz -C gasto-control
-          python3 - <<'PY'
-          from pathlib import Path
-          p=Path('gasto-control/app/src/main/java/com/gastocontrol/app/MainActivity.java')
-          s=p.read_text(encoding='utf-8')
-          old='''                .setMessage("GastoControl va a mirar el historial mientras vos solamente te desplazás. No tenés que sacar capturas.
-
-Además voy a mostrar un botón flotante TERMINAR arriba de " + label + ". La primera vez Android puede pedir permiso para mostrar ese botón sobre otras apps.
-
-Al terminar, vas a ver un resumen con entradas, salidas, comercios, categorías, fechas, cantidad de veces y total gastado.")'''
-          new='''                .setMessage("GastoControl va a mirar el historial mientras vos solamente te desplazás. No tenés que sacar capturas.\\n\\n" +
-                        "Además voy a mostrar un botón flotante TERMINAR arriba de " + label + ". La primera vez Android puede pedir permiso para mostrar ese botón sobre otras apps.\\n\\n" +
-                        "Al terminar, vas a ver un resumen con entradas, salidas, comercios, categorías, fechas, cantidad de veces y total gastado.")'''
-          if old not in s:
-              raise SystemExit('No se encontro el texto multilinea a corregir')
-          p.write_text(s.replace(old,new), encoding='utf-8')
-          PY
           grep -q 'versionCode 16' gasto-control/app/build.gradle
           grep -q 'versionName "12.4.0"' gasto-control/app/build.gradle
           grep -q 'SYSTEM_ALERT_WINDOW' gasto-control/app/src/main/AndroidManifest.xml
-          grep -q 'CaptureSummaryActivity' gasto-control/app/src/main/AndroidManifest.xml
-          grep -q 'showOverlayStopButton' gasto-control/app/src/main/java/com/gastocontrol/app/ScreenCaptureService.java
-          grep -q 'captureSessionItems' gasto-control/app/src/main/java/com/gastocontrol/app/ExpenseDbHelper.java
-          grep -q 'EN QUÉ SE FUE LA PLATA' gasto-control/app/src/main/java/com/gastocontrol/app/CaptureSummaryActivity.java
+          grep -q 'showCaptureSummary' gasto-control/app/src/main/java/com/gastocontrol/app/MainActivity.java
+          grep -q 'insertCapturedMovementWithKey' gasto-control/app/src/main/java/com/gastocontrol/app/ExpenseDbHelper.java
+          grep -q 'sessionTransactions' gasto-control/app/src/main/java/com/gastocontrol/app/ExpenseDbHelper.java
+          grep -q 'TERMINAR' gasto-control/app/src/main/java/com/gastocontrol/app/ScreenCaptureService.java
 
       - name: Run unit tests
         working-directory: gasto-control
