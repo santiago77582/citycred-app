@@ -5,7 +5,7 @@ on:
     branches:
       - gasto-control-v12-release
     paths:
-      - '.build/gastocontrol-v12-3-overlay.part*'
+      - '.build/gastocontrol-v12-3-overlay.full.b64'
       - '.github/workflows/build-gasto-control-v12-3-auto.yml'
   workflow_dispatch:
 
@@ -55,11 +55,7 @@ jobs:
       - name: Apply V12.3 automatic history reader
         run: |
           set -euxo pipefail
-          cat .build/gastocontrol-v12-3-overlay.part00 \
-              .build/gastocontrol-v12-3-overlay.part01 \
-              .build/gastocontrol-v12-3-overlay.part02 \
-              .build/gastocontrol-v12-3-overlay.part03 > /tmp/v123.b64
-          base64 -d /tmp/v123.b64 > /tmp/v123.tar.xz
+          base64 -d .build/gastocontrol-v12-3-overlay.full.b64 > /tmp/v123.tar.xz
           echo '7b6c593154d6a2566db064f6198fa03b9a3bc8b84908cfe603f4aff46f58fd80  /tmp/v123.tar.xz' | sha256sum -c -
           xz -t /tmp/v123.tar.xz
           tar -xJf /tmp/v123.tar.xz -C gasto-control
