@@ -66,6 +66,22 @@ jobs:
           echo 'b0e4b8227ce13ac03d4f488b5154c0ad3eb93733b1a5561fccd7573cad025dc6  /tmp/v124.tar.xz' | sha256sum -c -
           xz -t /tmp/v124.tar.xz
           tar -xJf /tmp/v124.tar.xz -C gasto-control
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('gasto-control/app/src/main/java/com/gastocontrol/app/MainActivity.java')
+          s=p.read_text(encoding='utf-8')
+          old='''                .setMessage("GastoControl va a mirar el historial mientras vos solamente te desplazás. No tenés que sacar capturas.
+
+Además voy a mostrar un botón flotante TERMINAR arriba de " + label + ". La primera vez Android puede pedir permiso para mostrar ese botón sobre otras apps.
+
+Al terminar, vas a ver un resumen con entradas, salidas, comercios, categorías, fechas, cantidad de veces y total gastado.")'''
+          new='''                .setMessage("GastoControl va a mirar el historial mientras vos solamente te desplazás. No tenés que sacar capturas.\\n\\n" +
+                        "Además voy a mostrar un botón flotante TERMINAR arriba de " + label + ". La primera vez Android puede pedir permiso para mostrar ese botón sobre otras apps.\\n\\n" +
+                        "Al terminar, vas a ver un resumen con entradas, salidas, comercios, categorías, fechas, cantidad de veces y total gastado.")'''
+          if old not in s:
+              raise SystemExit('No se encontro el texto multilinea a corregir')
+          p.write_text(s.replace(old,new), encoding='utf-8')
+          PY
           grep -q 'versionCode 16' gasto-control/app/build.gradle
           grep -q 'versionName "12.4.0"' gasto-control/app/build.gradle
           grep -q 'SYSTEM_ALERT_WINDOW' gasto-control/app/src/main/AndroidManifest.xml
