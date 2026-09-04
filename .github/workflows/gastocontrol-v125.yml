@@ -26,7 +26,18 @@ jobs:
       - name: Reconstruct source
         run: |
           mkdir -p gastocontrol-v125
-          cat gastocontrol-build/xz/part_* | base64 -d > /tmp/gastocontrol.tar.xz
+          python3 - <<'PY'
+          from pathlib import Path
+          import base64
+          parts = sorted(Path('gastocontrol-build/xz').glob('part_*'))
+          if len(parts) != 16:
+              raise SystemExit(f'Expected 16 source chunks, found {len(parts)}: {[p.name for p in parts]}')
+          encoded = ''.join(p.read_text().strip() for p in parts)
+          data = base64.b64decode(encoded, validate=True)
+          Path('/tmp/gastocontrol.tar.xz').write_bytes(data)
+          print(f'Reconstructed {len(data)} bytes from {len(parts)} chunks')
+          PY
+          xz -t /tmp/gastocontrol.tar.xz
           tar -xJf /tmp/gastocontrol.tar.xz -C gastocontrol-v125
       - name: Verify update identity
         run: |
