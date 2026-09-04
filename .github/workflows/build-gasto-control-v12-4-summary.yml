@@ -5,7 +5,7 @@ on:
     branches:
       - gasto-control-v12-release
     paths:
-      - '.build/gastocontrol-v12-4-overlay.part*'
+      - '.build/gcv124x.*'
       - '.github/workflows/build-gasto-control-v12-4-summary.yml'
   workflow_dispatch:
 
@@ -53,24 +53,25 @@ jobs:
           grep -q 'versionCode 15' gasto-control/app/build.gradle
           grep -q 'versionName "12.3.0"' gasto-control/app/build.gradle
 
-      - name: Apply V12.4 floating finish and grouped summary
+      - name: Apply V12.4 floating finish and session summary
         run: |
           set -euxo pipefail
-          cat .build/gastocontrol-v12-4-overlay.part00 \
-              .build/gastocontrol-v12-4-overlay.part01 \
-              .build/gastocontrol-v12-4-overlay.part02 \
-              .build/gastocontrol-v12-4-overlay.part03 \
-              .build/gastocontrol-v12-4-overlay.part04 > /tmp/v124.b64
+          cat .build/gcv124x.00 \
+              .build/gcv124x.01 \
+              .build/gcv124x.02 \
+              .build/gcv124x.03 \
+              .build/gcv124x.04 \
+              .build/gcv124x.05 > /tmp/v124.b64
           base64 -d /tmp/v124.b64 > /tmp/v124.tar.xz
-          echo '6579c6274a7ecb78a52f721c553f2642b4c9238f83e4a84a8931cbbb0067c884  /tmp/v124.tar.xz' | sha256sum -c -
+          echo '685231522fa82d150fea98f18d687d1ae816abe7e5755ba12a8fc1f2d9cc45d4  /tmp/v124.tar.xz' | sha256sum -c -
           xz -t /tmp/v124.tar.xz
           tar -xJf /tmp/v124.tar.xz -C gasto-control
           grep -q 'versionCode 16' gasto-control/app/build.gradle
           grep -q 'versionName "12.4.0"' gasto-control/app/build.gradle
-          grep -q 'SYSTEM_ALERT_WINDOW' gasto-control/app/src/main/AndroidManifest.xml
+          grep -q 'android.permission.SYSTEM_ALERT_WINDOW' gasto-control/app/src/main/AndroidManifest.xml
+          grep -q 'EXTRA_SESSION_ID' gasto-control/app/src/main/java/com/gastocontrol/app/ScreenCaptureService.java
           grep -q 'showCaptureSummary' gasto-control/app/src/main/java/com/gastocontrol/app/MainActivity.java
-          grep -q 'insertCapturedMovementWithKey' gasto-control/app/src/main/java/com/gastocontrol/app/ExpenseDbHelper.java
-          grep -q 'sessionTransactions' gasto-control/app/src/main/java/com/gastocontrol/app/ExpenseDbHelper.java
+          grep -q 'transactionsByTag' gasto-control/app/src/main/java/com/gastocontrol/app/ExpenseDbHelper.java
           grep -q 'TERMINAR' gasto-control/app/src/main/java/com/gastocontrol/app/ScreenCaptureService.java
 
       - name: Run unit tests
