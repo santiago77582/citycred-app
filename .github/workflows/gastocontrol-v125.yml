@@ -39,6 +39,18 @@ jobs:
           PY
           xz -t /tmp/gastocontrol.tar.xz
           tar -xJf /tmp/gastocontrol.tar.xz -C gastocontrol-v125
+      - name: Fix category false positive
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('gastocontrol-v125/app/src/main/java/com/gastocontrol/app/NotificationParser.java')
+          s = p.read_text()
+          old = '"camuzzi", "metrogas", "naturgy", "gas", "agua",'
+          new = '"camuzzi", "metrogas", "naturgy", "gas natural", "servicio de gas", "factura de gas", "agua",'
+          if old not in s:
+              raise SystemExit('Expected Servicios keyword sequence not found')
+          p.write_text(s.replace(old, new, 1))
+          PY
       - name: Verify update identity
         run: |
           grep -q 'applicationId "com.gastocontrol.app.v12"' gastocontrol-v125/app/build.gradle
