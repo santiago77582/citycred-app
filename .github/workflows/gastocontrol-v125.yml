@@ -1,0 +1,52 @@
+name: Build GastoControl V12.5
+
+on:
+  push:
+    branches: [gastocontrol-v125-build]
+    paths:
+      - 'gastocontrol-build/**'
+      - '.github/workflows/gastocontrol-v125.yml'
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@v3
+      - name: Install Android SDK
+        run: sdkmanager 'platforms;android-35' 'build-tools;35.0.0'
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.11.1'
+      - name: Reconstruct source
+        run: |
+          mkdir -p gastocontrol-v125
+          cat gastocontrol-build/xz/part_* | base64 -d > /tmp/gastocontrol.tar.xz
+          tar -xJf /tmp/gastocontrol.tar.xz -C gastocontrol-v125
+      - name: Verify update identity
+        run: |
+          grep -q 'applicationId "com.gastocontrol.app.v12"' gastocontrol-v125/app/build.gradle
+          grep -q 'versionCode 17' gastocontrol-v125/app/build.gradle
+          grep -q 'versionName "12.5.0"' gastocontrol-v125/app/build.gradle
+      - name: Test
+        working-directory: gastocontrol-v125
+        run: gradle :app:testDebugUnitTest --stacktrace
+      - name: Build unsigned release
+        working-directory: gastocontrol-v125
+        run: gradle :app:assembleRelease --stacktrace
+      - name: Collect APK and signer
+        run: |
+          mkdir -p out
+          cp gastocontrol-v125/app/build/outputs/apk/release/*.apk out/GastoControl-Pro-v12.5-UNSIGNED.apk
+          cp "$ANDROID_HOME/build-tools/35.0.0/lib/apksigner.jar" out/apksigner.jar
+          sha256sum out/GastoControl-Pro-v12.5-UNSIGNED.apk
+      - uses: actions/upload-artifact@v4
+        with:
+          name: GastoControl-v12.5-unsigned
+          path: out/*
+          if-no-files-found: error
